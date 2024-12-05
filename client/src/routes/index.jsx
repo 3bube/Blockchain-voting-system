@@ -1,24 +1,24 @@
-import { createBrowserRouter } from 'react-router-dom';
-import Home from '../pages/Home';
-import Vote from '../pages/Vote';
-import Results from '../pages/Results';
-import Layout from '../components/Layout';
+import { createBrowserRouter } from "react-router-dom";
+import LandingPage from "../pages/LandingPage";
+import Vote from "../pages/Vote";
+import Results from "../pages/Results";
+import Layout from "../components/Layout";
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     element: <Layout />,
     children: [
       {
         index: true,
-        element: <Home />,
+        element: <LandingPage />,
       },
       {
-        path: 'vote',
+        path: "vote",
         element: <Vote />,
       },
       {
-        path: 'results',
+        path: "results",
         element: <Results />,
       },
     ],
