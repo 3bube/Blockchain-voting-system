@@ -22,7 +22,10 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
-  origin: "http://localhost:5173", // React app's default development port
+  origin: [
+    "http://localhost:5173",
+    "https://blockchain-voting-system-lime.vercel.app",
+  ], // React app's default development port
   credentials: true, // Allow credentials (cookies, authorization headers)
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
