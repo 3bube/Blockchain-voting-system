@@ -9,7 +9,6 @@ import {
   Avatar,
   HStack,
   Icon,
-  Image,
 } from "@chakra-ui/react";
 import { Outlet, NavLink } from "react-router-dom";
 import {
@@ -20,10 +19,9 @@ import {
   Settings,
   DoorOpen,
   Trash,
-  ListEnd,
   CheckCheck,
 } from "lucide-react";
-import { useAuth } from "../context/useAuth";
+import useAuth from "../context/useAuth";
 import TimeStatus from "./Dashboard/TimeStatus";
 import { useLocation } from "react-router-dom";
 
@@ -77,6 +75,8 @@ const DashboardLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const { currentUser, logout } = useAuth();
+
+  console.log(currentUser);
   const isCreateVote = location.pathname.startsWith("/dashboard/create-vote");
 
   if (isCreateVote) return <Outlet />;

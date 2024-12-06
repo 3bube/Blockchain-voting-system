@@ -17,7 +17,7 @@ import {
 } from "@chakra-ui/react";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/useAuth";
+import useAuth from "../context/useAuth";
 
 const Login = () => {
   const [email, setEmail] = useState("");

@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text, Heading, HStack } from "@chakra-ui/react";
-import { useAuth } from "../context/useAuth";
+import useAuth from "../context/useAuth";
 import SearchBar from "../components/Dashboard/SearchBar";
 import TotalVoteCard from "../components/Dashboard/TotalVoteCard";
 import UpcomingVotesCard from "../components/Dashboard/UpcomingVotesCard";
