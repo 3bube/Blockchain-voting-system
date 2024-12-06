@@ -167,7 +167,7 @@ const DashboardLayout = () => {
           {!isCollapsed && (
             <>
               <Text fontWeight="semibold" fontSize={20} color={"white"}>
-                {currentUser?.name}
+                {currentUser?.name ?? "User"}
               </Text>
               <Text>Voter</Text>
             </>

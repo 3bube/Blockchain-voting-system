@@ -1,6 +1,10 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:5000/api";
+const isDevelopment = window.location.hostname === "localhost";
+const DEVELOPMENT_URL = "http://localhost:5000/api";
+const PRODUCTION_URL = "https://blockchain-voting-system-63nj.vercel.app/api";
+
+const BASE_URL = isDevelopment ? DEVELOPMENT_URL : PRODUCTION_URL;
 
 const newRequest = axios.create({
   baseURL: BASE_URL,
