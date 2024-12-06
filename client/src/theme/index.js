@@ -4,7 +4,8 @@ const colors = {
   coffee: {
     50: "#f7f3f0",
     100: "#ebe1d7",
-    200: "#d9c3ae",
+    150: "#D9D9D9",
+    200: "#928979",
     300: "#c6a585",
     400: "#b3875c",
     500: "#7C5026", // your main coffee color
