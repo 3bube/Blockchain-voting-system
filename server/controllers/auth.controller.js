@@ -103,7 +103,6 @@ export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
 
-    console.log(user);
     res.status(200).json({
       success: true,
       data: {

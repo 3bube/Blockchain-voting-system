@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import http from "http";
+import socketService from "./services/socket.service.js";
 
 // Load environment variables
 dotenv.config();
@@ -56,15 +58,19 @@ app.get("/", (req, res) => {
 // Routes
 import authRoute from "./routes/auth.routes.js";
 import voteRoute from "./routes/vote.routes.js";
+import roomRoute from "./routes/room.routes.js";
 
 app.use("/api/vote", voteRoute);
 app.use("/api", authRoute);
+app.use("/api", roomRoute);
 
 // Start server
 const startServer = async () => {
   try {
     await connectDB();
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+    socketService.initialize(server);
+    server.listen(PORT, () => {
       console.log(
         `Server running in ${
           process.env.NODE_ENV || "development"

@@ -3,7 +3,7 @@ import { protect } from "../Middleware/auth.js";
 import {
   createVote,
   getAllVotes,
-  getVoteById,
+  getVoteByRoomId,
   castVote,
   getUserVotingHistory,
 } from "../controllers/vote.controller.js";
@@ -17,7 +17,7 @@ router.post("/create", protect, createVote);
 router.get("/all", protect, getAllVotes);
 
 // Get specific vote by ID
-router.get("/:id", protect, getVoteById);
+router.get("/:id", protect, getVoteByRoomId);
 
 // Cast a vote (requires authentication)
 router.post("/:id/cast", protect, castVote);

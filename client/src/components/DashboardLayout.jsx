@@ -76,10 +76,13 @@ const DashboardLayout = () => {
   const location = useLocation();
   const { currentUser, logout } = useAuth();
 
-  console.log(currentUser);
   const isCreateVote = location.pathname.startsWith("/dashboard/create-vote");
+  const isJoinRoom = location.pathname.startsWith("/dashboard/join-room");
+  const isRoom = location.pathname.startsWith("/dashboard/room");
 
   if (isCreateVote) return <Outlet />;
+  if (isJoinRoom) return <Outlet />;
+  if (isRoom) return <Outlet />;
 
   const sidebarBg = useColorModeValue("coffee.200", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -105,7 +108,7 @@ const DashboardLayout = () => {
     },
     {
       section: "Room",
-      links: [{ to: "/room", icon: CheckCheck, label: "Room" }],
+      links: [{ to: "/dashboard/join-room", icon: CheckCheck, label: "Room" }],
     },
     {
       section: "Other",

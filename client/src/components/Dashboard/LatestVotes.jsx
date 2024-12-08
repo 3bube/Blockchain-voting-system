@@ -7,26 +7,37 @@ import {
   IconButton,
   Button,
   SimpleGrid,
+  Skeleton,
+  SkeletonText,
 } from "@chakra-ui/react";
 import { PlusSquareIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import VoteCard from "./VoteCard";
+import { getAllVotes } from "../../utils/vote.utils";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { getAccessCodeByVoteId } from "../../utils/room.utils";
 
 const LatestVotes = () => {
-  // Sample data - replace with actual data from your backend
-  const votes = [
-    {
-      room: "4UJS08",
-      candidates: "Candidate 1, Candidate 2",
-      endTime: "03:21:22:10",
-    },
-    {
-      room: "5UJS09",
-      candidates: "Candidate 3, Candidate 4",
-      endTime: "02:15:45:30",
-    },
-    // Add more sample votes as needed
-  ];
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["votes"],
+    queryFn: async () => await getAllVotes(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: false,
+  });
+
+  const accessCodeQueries = useQueries({
+    queries: (data?.votes || []).map((vote) => ({
+      queryKey: ["accessCode", vote._id],
+      queryFn: () => getAccessCodeByVoteId(vote._id),
+      enabled: !!vote._id,
+    })),
+  });
+
+  const accessCodes = accessCodeQueries.map((query) => query.data);
+
+  const votes = data?.votes || [];
 
   const navigate = useNavigate();
 
@@ -56,14 +67,25 @@ const LatestVotes = () => {
           Latest Votes
         </Text>
         <SimpleGrid columns={1} spacing={4}>
-          {votes.map((vote, index) => (
-            <VoteCard
-              key={index}
-              room={vote.room}
-              candidates={vote.candidates}
-              endTime={vote.endTime}
-            />
-          ))}
+          {isLoading ? (
+            <Skeleton
+              startColor="coffee.300"
+              endColor="coffee.600"
+              w="full"
+              p={4}
+              borderRadius={8}
+            >
+              <SkeletonText noOfLines={4} />
+            </Skeleton>
+          ) : (
+            votes?.map((vote, index) => (
+              <VoteCard
+                key={index}
+                vote={vote}
+                accessCode={accessCodes[index]}
+              />
+            ))
+          )}
         </SimpleGrid>
       </Box>
     </Box>

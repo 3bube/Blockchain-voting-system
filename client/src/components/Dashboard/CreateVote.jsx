@@ -10,6 +10,10 @@ import {
   IconButton,
   useToast,
   Container,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
   SimpleGrid,
   Heading,
   Text,
@@ -18,11 +22,15 @@ import {
 import { X, Plus, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVote } from "../../utils/vote.utils";
+import { generateRoomCode } from "../../utils/vote.utils";
 
 const CreateVote = () => {
   const [candidates, setCandidates] = useState([{ name: "" }]);
   const [title, setTitle] = useState("");
   const [startTime, setStartTime] = useState("");
+  const [roomName, setRoomName] = useState("");
+  const [description, setDescription] = useState("");
+  const [maxParticipants, setMaxParticipants] = useState(0);
   const [endTime, setEndTime] = useState("");
   const [errors, setErrors] = useState({
     startTime: "",
@@ -31,6 +39,7 @@ const CreateVote = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
+  const accessCode = generateRoomCode();
 
   // Get current date and time in ISO format
   const now = new Date();
@@ -113,7 +122,18 @@ const CreateVote = () => {
     }
     setLoading(true);
     try {
-      await createVote(title, startTime, endTime, candidates);
+      const voteData = {
+        title,
+        startTime,
+        endTime,
+        candidates,
+        roomName,
+        maxParticipants,
+        roomDesc: description,
+        accessCode,
+      };
+
+      await createVote(voteData);
       navigate("/dashboard");
       toast({
         title: "Vote created",
@@ -192,6 +212,42 @@ const CreateVote = () => {
                 <FormErrorMessage>{errors.endTime}</FormErrorMessage>
               </FormControl>
             </SimpleGrid>
+
+            <FormControl isRequired>
+              <FormLabel>Room Name</FormLabel>
+              <Input
+                value={roomName}
+                onChange={(e) => setRoomName(e.target.value)}
+                placeholder="Room Name"
+              />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel>Room Description</FormLabel>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Room Description"
+              />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Maximum Participants: {maxParticipants}</FormLabel>
+              <Slider
+                aria-label="maximum participants"
+                defaultValue={2}
+                value={maxParticipants}
+                min={2}
+                max={1000}
+                onChange={(val) => setMaxParticipants(val)}
+                width="full"
+              >
+                <SliderTrack>
+                  <SliderFilledTrack bg={"coffee.500"} />
+                </SliderTrack>
+                <SliderThumb />
+              </Slider>
+            </FormControl>
 
             <Box>
               <Text mb={4} fontWeight="medium">

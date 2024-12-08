@@ -50,8 +50,8 @@ const voteSchema = new mongoose.Schema(
     ],
     status: {
       type: String,
-      enum: ["pending", "active", "completed"],
-      default: "pending",
+      enum: ["pending", "new", "active", "completed"],
+      default: "new",
     },
   },
   { timestamps: true }

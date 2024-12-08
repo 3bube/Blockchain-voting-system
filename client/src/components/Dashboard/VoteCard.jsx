@@ -1,42 +1,155 @@
-import React from "react";
-import { Box, HStack, Text, Icon } from "@chakra-ui/react";
-import { ArrowUpRight } from "lucide-react";
+import {
+  Box,
+  Text,
+  HStack,
+  Badge,
+  Progress,
+  useToast,
+  VStack,
+  Divider,
+} from "@chakra-ui/react";
+import PropTypes from "prop-types";
+import { Copy } from "lucide-react";
 
-const VoteCard = ({ room, candidates, endTime }) => {
+const VoteCard = ({ vote, accessCode }) => {
+  const getTimeRemaining = (endTime) => {
+    const end = new Date(endTime);
+    const now = new Date();
+    const diff = end - now;
+
+    if (diff < 0) return "Ended";
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    return `${days}d ${hours}h ${minutes}m`;
+  };
+
+  const getStatus = (startTime, endTime) => {
+    const now = new Date();
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (now < start) return "pending";
+    if (now > end) return "completed";
+    return "active";
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "pending":
+        return "yellow";
+      case "active":
+        return "green";
+      case "completed":
+        return "gray";
+      default:
+        return "gray";
+    }
+  };
+
+  const getTotalVotes = () => {
+    return vote.candidates.reduce(
+      (sum, candidate) => sum + candidate.voteCount,
+      0
+    );
+  };
+
+  const toast = useToast();
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(accessCode);
+    toast({
+      title: "Access code copied",
+      description: "Access code has been copied to your clipboard",
+      status: "success",
+      duration: 3000,
+    });
+  };
+
+  const status = getStatus(vote.startTime, vote.endTime);
+  const totalVotes = getTotalVotes();
+
   return (
     <Box
-      w="full"
-      bg="#D9C3AE"
-      borderRadius="xl"
+      bg="white"
       p={4}
-      position="relative"
-      cursor="pointer"
-      _hover={{
-        transform: "translateY(-2px)",
-        transition: "all 0.2s",
-      }}
+      borderRadius="lg"
+      shadow="sm"
+      border="1px"
+      borderColor="gray.100"
+      _hover={{ shadow: "md" }}
+      transition="all 0.2s"
     >
-      <HStack justify="space-between" mb={2}>
-        <Text fontSize="sm" color="gray.700">
-          Room: {room}
-        </Text>
-        <Icon as={ArrowUpRight} boxSize={4} color="gray.700" />
-      </HStack>
+      <VStack align="stretch" spacing={3}>
+        <HStack justify="space-between">
+          <Text fontWeight="bold" fontSize="lg">
+            {vote.title}
+          </Text>
+          {accessCode && (
+            <Badge
+              display={"flex"}
+              alignItems={"center"}
+              gap={1}
+              colorScheme="gray"
+              fontSize="sm"
+              onClick={handleCopy}
+              cursor={"pointer"}
+            >
+              {accessCode} <Copy size={16} />
+            </Badge>
+          )}
+          <Badge colorScheme={getStatusColor(status)}>{status}</Badge>
+        </HStack>
 
-      <Text fontSize="md" fontWeight="medium" mb={1}>
-        {candidates}
-      </Text>
+        <Divider />
 
-      <HStack spacing={2} align="center">
-        <Text fontSize="xs" color="gray.600">
-          Ends in:
-        </Text>
-        <Text fontSize="xs" fontWeight="medium" color="gray.700">
-          {endTime}
-        </Text>
-      </HStack>
+        <Box>
+          <Text fontSize="sm" color="gray.600" mb={2}>
+            Candidates:
+          </Text>
+          {vote.candidates.map((candidate, index) => (
+            <Box key={index} mb={2}>
+              <HStack justify="space-between" mb={1}>
+                <Text fontSize="sm">{candidate.name}</Text>
+                <Text fontSize="sm" color="gray.600">
+                  {candidate.voteCount} votes
+                </Text>
+              </HStack>
+              <Progress
+                value={(candidate.voteCount / (totalVotes || 1)) * 100}
+                size="sm"
+                colorScheme="coffee"
+                borderRadius="full"
+              />
+            </Box>
+          ))}
+        </Box>
+
+        <HStack justify="space-between" fontSize="sm" color="gray.600">
+          <Text>Total Votes: {totalVotes}</Text>
+          <Text>Time Remaining: {getTimeRemaining(vote.endTime)}</Text>
+        </HStack>
+      </VStack>
     </Box>
   );
+};
+
+VoteCard.propTypes = {
+  vote: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    title: PropTypes.string.isRequired,
+    startTime: PropTypes.string.isRequired,
+    endTime: PropTypes.string.isRequired,
+    candidates: PropTypes.arrayOf(
+      PropTypes.shape({
+        id: PropTypes.string.isRequired,
+        name: PropTypes.string.isRequired,
+        voteCount: PropTypes.number.isRequired,
+      })
+    ).isRequired,
+  }).isRequired,
 };
 
 export default VoteCard;

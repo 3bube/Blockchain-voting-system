@@ -1,16 +1,26 @@
 import Vote from "../models/vote.models.js";
+import Room from "../models/room.models.js";
 import User from "../models/user.models.js";
 
 // Create a new vote
 export const createVote = async (req, res) => {
   try {
-    const { title, startTime, endTime, candidates } = req.body;
+    const {
+      title,
+      startTime,
+      endTime,
+      candidates,
+      roomName,
+      roomDesc,
+      maxParticipants,
+      accessCode,
+    } = req.body;
     const userId = req.user._id;
 
     // Format candidates array
-    const formattedCandidates = candidates.map(name => ({
+    const formattedCandidates = candidates.map((name) => ({
       name: name,
-      voteCount: 0
+      voteCount: 0,
     }));
 
     // Create and save vote
@@ -23,6 +33,19 @@ export const createVote = async (req, res) => {
     });
 
     await vote.save();
+
+    const room = new Room({
+      name: roomName,
+      description: roomDesc,
+      creator: userId,
+      accessCode: accessCode,
+      startTime: startTime,
+      endTime: endTime,
+      maxParticipants: maxParticipants,
+      vote: vote._id,
+    });
+
+    await room.save();
 
     // Update user's voting history
     await User.findByIdAndUpdate(userId, {
@@ -47,7 +70,7 @@ export const createVote = async (req, res) => {
 // Get all votes
 export const getAllVotes = async (req, res) => {
   try {
-    const votes = await Vote.find()
+    const votes = await Vote.find({ status: "new" })
       .populate("creator", "username email")
       .sort({ createdAt: -1 });
 
@@ -65,19 +88,13 @@ export const getAllVotes = async (req, res) => {
 };
 
 // Get vote by ID
-export const getVoteById = async (req, res) => {
+export const getVoteByRoomId = async (req, res) => {
   try {
-    const vote = await Vote.findById(req.params.id)
-      .populate("creator", "username email")
-      .populate("voters.user", "username email");
-
-    if (!vote) {
-      return res.status(404).json({
-        success: false,
-        message: "Vote not found",
-      });
-    }
-
+    const room = await Room.findById(req.params.id).populate("vote");
+    const vote = await Vote.findById(room.vote._id).populate(
+      "creator",
+      "name email"
+    );
     res.status(200).json({
       success: true,
       vote,
@@ -108,13 +125,13 @@ export const castVote = async (req, res) => {
     }
 
     // Check if vote is active
-    const now = new Date();
-    if (now < new Date(vote.startTime) || now > new Date(vote.endTime)) {
-      return res.status(400).json({
-        success: false,
-        message: "Voting is not currently active",
-      });
-    }
+    // const now = new Date();
+    // if (now < new Date(vote.startTime) || now > new Date(vote.endTime)) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Voting is not currently active",
+    //   });
+    // }
 
     // Check if user has already voted
     const hasVoted = vote.voters.some(
@@ -126,6 +143,8 @@ export const castVote = async (req, res) => {
         message: "You have already voted",
       });
     }
+
+    console.log("Has voted:", hasVoted);
 
     // Check if candidate index is valid
     if (candidateIndex < 0 || candidateIndex >= vote.candidates.length) {
