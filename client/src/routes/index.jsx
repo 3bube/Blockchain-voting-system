@@ -10,6 +10,7 @@ import OngoingVote from "../components/Dashboard/OngoingVote";
 import History from "../components/Dashboard/History";
 import CreateVote from "../components/Dashboard/CreateVote";
 import JoinRoom from "../components/Dashboard/JoinRoom";
+import VoteDetails from "../pages/VoteDetails";
 
 export const AppRoutes = () => (
   <Routes>
@@ -25,6 +26,7 @@ export const AppRoutes = () => (
       <Route path="create-vote" element={<CreateVote />} />
       <Route path="join-room" element={<JoinRoom />} />
       <Route path="room/:id" element={<Room />} />
+      <Route path="vote-details" element={<VoteDetails />} />
       {/* Add more dashboard routes here */}
     </Route>
   </Routes>

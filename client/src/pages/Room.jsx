@@ -163,6 +163,7 @@ const Room = () => {
       }
     };
   }, [data]);
+
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const { vote } = data ?? {};
 

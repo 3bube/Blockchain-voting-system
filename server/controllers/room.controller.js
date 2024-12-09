@@ -14,7 +14,7 @@ export const getRoomById = async (req, res) => {
 export const getAccessCodeByVoteId = async (req, res) => {
   try {
     const room = await Room.findOne({ vote: req.params.id });
-    return res.status(200).json(room.accessCode);
+    return res.status(200).json(room);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -28,6 +28,10 @@ export const joinRoomByAccessCode = async (req, res) => {
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
+    }
+
+    if (room.status === "cancelled") {
+      return res.status(400).json({ error: "Room is not available" });
     }
 
     if (room.participants.length >= room.maxParticipants) {

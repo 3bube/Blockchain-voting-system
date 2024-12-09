@@ -1,6 +1,8 @@
 import newRequest from "./newRequest";
 
 export const createVote = async (voteData) => {
+  if (!voteData) throw new Error("No data provided");
+
   try {
     const candidateNames = voteData.candidates.map(
       (candidate) => candidate.name
@@ -30,6 +32,7 @@ export const getAllVotes = async () => {
 };
 
 export const getVoteByRoomId = async (id) => {
+  if (!id) throw new Error("ID is required");
   try {
     const response = await newRequest.get(`/vote/${id}`);
     return response.data;
@@ -39,6 +42,8 @@ export const getVoteByRoomId = async (id) => {
 };
 
 export const castVote = async (voteId, candidateIndex) => {
+  if (!voteId || candidateIndex)
+    throw new Error("Provide the vote id and candidate index");
   try {
     const response = await newRequest.post(`vote/${voteId}/cast`, {
       candidateIndex,
@@ -57,6 +62,39 @@ export const getVotingHistory = async () => {
     throw new Error(
       error.response?.data?.message || "Error fetching voting history"
     );
+  }
+};
+
+export const updateVote = async (id) => {
+  if (!id) throw new Error("Vote id is required");
+
+  try {
+    const response = await newRequest.patch(`/vote/end/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating vote details", error);
+  }
+};
+
+export const deleteVote = async (id) => {
+  if (!id) throw new Error("Vote id is required");
+
+  try {
+    const response = await newRequest.delete(`/vote/delete/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting vote", error);
+  }
+};
+
+export const endVote = async (id) => {
+  if (!id) throw new Error("Vote id is required");
+  console.log(id);
+  try {
+    const response = await newRequest.post(`/vote/end/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating vote details", error);
   }
 };
 

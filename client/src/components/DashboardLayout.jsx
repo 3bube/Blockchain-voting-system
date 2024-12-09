@@ -79,10 +79,12 @@ const DashboardLayout = () => {
   const isCreateVote = location.pathname.startsWith("/dashboard/create-vote");
   const isJoinRoom = location.pathname.startsWith("/dashboard/join-room");
   const isRoom = location.pathname.startsWith("/dashboard/room");
+  const isVoteDetails = location.pathname.startsWith("/dashboard/vote-details");
 
   if (isCreateVote) return <Outlet />;
   if (isJoinRoom) return <Outlet />;
   if (isRoom) return <Outlet />;
+  if (isVoteDetails) return <Outlet />;
 
   const sidebarBg = useColorModeValue("coffee.200", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -92,11 +94,11 @@ const DashboardLayout = () => {
       section: "Dashboard",
       links: [
         { to: "/dashboard", icon: Home, label: "Dashboard" },
-        {
-          to: "/dashboard/vote?ended=false",
-          icon: Vote,
-          label: "Ongoing Vote",
-        },
+        // {
+        //   to: "/dashboard/vote?ended=false",
+        //   icon: Vote,
+        //   label: "Ongoing Vote",
+        // },
         // {
         //   to: "/dashboard/vote?ended=true",
         //   icon: ListEnd,

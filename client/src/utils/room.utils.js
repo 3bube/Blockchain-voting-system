@@ -2,7 +2,7 @@
 import newRequest from "./newRequest";
 
 // send a request to the server to get the access code for a room
-export const getAccessCodeByVoteId = async (voteId) => {
+export const getRoomByVoteId = async (voteId) => {
   try {
     const response = await newRequest.get(`/${voteId}`);
     return response.data;

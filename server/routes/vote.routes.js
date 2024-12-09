@@ -6,6 +6,9 @@ import {
   getVoteByRoomId,
   castVote,
   getUserVotingHistory,
+  updateVote,
+  endVote,
+  deleteVote,
 } from "../controllers/vote.controller.js";
 
 const router = express.Router();
@@ -24,5 +27,11 @@ router.post("/:id/cast", protect, castVote);
 
 // Get user's voting history (requires authentication)
 router.get("/history", protect, getUserVotingHistory);
+
+router.post("/update/:id", protect, updateVote);
+
+router.post("/end/:id", protect, endVote);
+
+router.delete("/delete/:id", protect, deleteVote);
 
 export default router;

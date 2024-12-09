@@ -8,6 +8,7 @@ import {
   VStack,
   Divider,
 } from "@chakra-ui/react";
+import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import { Copy } from "lucide-react";
 
@@ -26,24 +27,28 @@ const VoteCard = ({ vote, accessCode }) => {
     return `${days}d ${hours}h ${minutes}m`;
   };
 
-  const getStatus = (startTime, endTime) => {
-    const now = new Date();
-    const start = new Date(startTime);
-    const end = new Date(endTime);
+  // const getStatus = (startTime, endTime) => {
+  //   const now = new Date();
+  //   const start = new Date(startTime);
+  //   const end = new Date(endTime);
 
-    if (now < start) return "pending";
-    if (now > end) return "completed";
-    return "active";
-  };
+  //   if (now < start) return "pending";
+  //   if (now > end) return "completed";
+  //   return "active";
+  // };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "pending":
         return "yellow";
+      /*************  ✨ Codeium Command 🌟  *************/
       case "active":
+      case "new":
         return "green";
       case "completed":
         return "gray";
+      case "closed":
+        return "red";
       default:
         return "gray";
     }
@@ -68,8 +73,21 @@ const VoteCard = ({ vote, accessCode }) => {
     });
   };
 
-  const status = getStatus(vote.startTime, vote.endTime);
+  const navigate = useNavigate();
   const totalVotes = getTotalVotes();
+
+  const handleVoteDetailsClick = (id) => () => {
+    if (vote?.status === "closed") {
+      toast({
+        title: "Vote is closed",
+        description: "You cannot view the details of a closed vote",
+        status: "warning",
+        duration: 3000,
+      });
+      return;
+    }
+    navigate(`/dashboard/vote-details?voteId=${id}`);
+  };
 
   return (
     <Box
@@ -84,7 +102,13 @@ const VoteCard = ({ vote, accessCode }) => {
     >
       <VStack align="stretch" spacing={3}>
         <HStack justify="space-between">
-          <Text fontWeight="bold" fontSize="lg">
+          <Text
+            fontWeight="bold"
+            fontSize="lg"
+            cursor={"pointer"}
+            _hover={{ textDecoration: "underline" }}
+            onClick={handleVoteDetailsClick(vote._id)}
+          >
             {vote.title}
           </Text>
           {accessCode && (
@@ -100,7 +124,9 @@ const VoteCard = ({ vote, accessCode }) => {
               {accessCode} <Copy size={16} />
             </Badge>
           )}
-          <Badge colorScheme={getStatusColor(status)}>{status}</Badge>
+          <Badge colorScheme={getStatusColor(vote?.status)}>
+            {vote?.status}
+          </Badge>
         </HStack>
 
         <Divider />
@@ -141,6 +167,7 @@ VoteCard.propTypes = {
     id: PropTypes.string.isRequired,
     title: PropTypes.string.isRequired,
     startTime: PropTypes.string.isRequired,
+    accessCode: PropTypes.string,
     endTime: PropTypes.string.isRequired,
     candidates: PropTypes.arrayOf(
       PropTypes.shape({

@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import VoteCard from "./VoteCard";
 import { getAllVotes } from "../../utils/vote.utils";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { getAccessCodeByVoteId } from "../../utils/room.utils";
+import { getRoomByVoteId } from "../../utils/room.utils";
 
 const LatestVotes = () => {
   const { data, isLoading, isError, error } = useQuery({
@@ -27,15 +27,15 @@ const LatestVotes = () => {
     refetchOnWindowFocus: false,
   });
 
-  const accessCodeQueries = useQueries({
+  const roomQueries = useQueries({
     queries: (data?.votes || []).map((vote) => ({
-      queryKey: ["accessCode", vote._id],
-      queryFn: () => getAccessCodeByVoteId(vote._id),
+      queryKey: ["room", vote._id],
+      queryFn: () => getRoomByVoteId(vote._id),
       enabled: !!vote._id,
     })),
   });
 
-  const accessCodes = accessCodeQueries.map((query) => query.data);
+  const accessCodes = roomQueries.map((query) => query.data?.accessCode);
 
   const votes = data?.votes || [];
 
@@ -43,7 +43,12 @@ const LatestVotes = () => {
 
   return (
     <Box p={4} my={10} borderRadius={8}>
-      <HStack alignItems={"center"} justifyContent={"space-between"} w={"full"}>
+      <HStack
+        alignItems={"center"}
+        justifyContent={"space-between"}
+        w={"full"}
+        mb={6}
+      >
         <Heading color={"black"} fontWeight={"light"}>
           Latest Votes
         </Heading>

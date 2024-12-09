@@ -125,13 +125,13 @@ export const castVote = async (req, res) => {
     }
 
     // Check if vote is active
-    // const now = new Date();
-    // if (now < new Date(vote.startTime) || now > new Date(vote.endTime)) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "Voting is not currently active",
-    //   });
-    // }
+    const now = new Date();
+    if (now < new Date(vote.startTime) || now > new Date(vote.endTime)) {
+      return res.status(400).json({
+        success: false,
+        message: "Voting is not currently active",
+      });
+    }
 
     // Check if user has already voted
     const hasVoted = vote.voters.some(
@@ -198,6 +198,103 @@ export const getUserVotingHistory = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error fetching voting history",
+      error: error.message,
+    });
+  }
+};
+
+// update vote
+export const updateVote = async (req, res) => {
+  try {
+    const { title, candidates } = req.body;
+    const voteId = req.params.id;
+
+    const updatedVote = await Vote.findByIdAndUpdate(
+      voteId,
+      { title, candidates },
+      { new: true } // Return the updated document
+    );
+
+    if (!updatedVote) {
+      return res.status(404).json({
+        success: false,
+        message: "Vote not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Vote updated successfully",
+      vote: updatedVote,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error updating vote",
+      error: error.message,
+    });
+  }
+};
+
+// end vote
+export const endVote = async (req, res) => {
+  try {
+    const voteId = req.params.id;
+
+    const vote = await Vote.findById(voteId);
+
+    console.log(vote);
+    const room = await Room.findOne({ vote: voteId });
+
+    if (!vote) {
+      return res.status(404).json({
+        success: false,
+        message: "Vote not found",
+      });
+    }
+
+    vote.status = "closed";
+    room.status = "cancelled";
+
+    await vote.save();
+    await room.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Vote ended successfully",
+      vote,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error ending vote",
+      error: error.message,
+    });
+  }
+};
+
+// delete vote
+export const deleteVote = async (req, res) => {
+  try {
+    const voteId = req.params.id;
+
+    const vote = await Vote.findByIdAndDelete(voteId);
+
+    if (!vote) {
+      return res.status(404).json({
+        success: false,
+        message: "Vote not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Vote deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error deleting vote",
       error: error.message,
     });
   }
