@@ -19,6 +19,7 @@ import {
   FormControl,
   FormLabel,
   Input,
+  useColorMode,
 } from "@chakra-ui/react";
 import { CircleX, Trash, Edit } from "lucide-react";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -37,6 +38,7 @@ const VoteDetails = () => {
   const [searchParams] = useSearchParams();
   const voteId = searchParams.get("voteId");
   const { currentUser } = useAuth();
+  const { colorMode } = useColorMode();
 
   const { data: roomDetails } = useQuery({
     queryKey: ["room", voteId],
@@ -118,10 +120,16 @@ const VoteDetails = () => {
       0
     ) ?? 0;
 
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toISOString().slice(0, 16);  // This will format to yyyy-MM-ddThh:mm
+  };
+
   const [isEditing, setIsEditing] = useState(false);
-  const [newTitle, setNewTitle] = useState(votes?.title ?? "");
-  const [newStartTime, setNewStartTime] = useState(votes?.startTime ?? "");
-  const [newEndTime, setNewEndTime] = useState(votes?.endTime ?? "");
+  const [newTitle, setNewTitle] = useState(votes?.title);
+  const [newStartTime, setNewStartTime] = useState(formatDateForInput(votes?.startTime));
+  const [newEndTime, setNewEndTime] = useState(formatDateForInput(votes?.endTime));
 
   const handleEndVote = async (id) => {
     try {
@@ -160,7 +168,7 @@ const VoteDetails = () => {
   return (
     <Box
       minH="100vh"
-      bg="milk.500"
+      bg={colorMode === "light" ? "milk.500" : "coffee.900"}
       py={{ base: "12", md: "16" }}
       px={{ base: "4", sm: "8" }}
     >

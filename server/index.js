@@ -59,10 +59,12 @@ app.get("/", (req, res) => {
 import authRoute from "./routes/auth.routes.js";
 import voteRoute from "./routes/vote.routes.js";
 import roomRoute from "./routes/room.routes.js";
+import userRoute from "./routes/user.routes.js";
 
 app.use("/api/vote", voteRoute);
 app.use("/api", authRoute);
 app.use("/api", roomRoute);
+app.use("/api/user", userRoute);
 
 // Start server
 const startServer = async () => {

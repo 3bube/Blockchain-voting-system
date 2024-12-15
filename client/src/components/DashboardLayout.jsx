@@ -9,6 +9,7 @@ import {
   Avatar,
   HStack,
   Icon,
+  useColorMode,
 } from "@chakra-ui/react";
 import { Outlet, NavLink } from "react-router-dom";
 import {
@@ -75,19 +76,21 @@ const DashboardLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const { currentUser, logout } = useAuth();
+  const { colorMode } = useColorMode();
+  const sidebarBg = useColorModeValue("coffee.200", "gray.800");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
+  const textColor = useColorModeValue("gray.800", "white");
+  const subTextColor = useColorModeValue("gray.600", "gray.400");
 
   const isCreateVote = location.pathname.startsWith("/dashboard/create-vote");
   const isJoinRoom = location.pathname.startsWith("/dashboard/join-room");
   const isRoom = location.pathname.startsWith("/dashboard/room");
   const isVoteDetails = location.pathname.startsWith("/dashboard/vote-details");
 
-  if (isCreateVote) return <Outlet />;
-  if (isJoinRoom) return <Outlet />;
-  if (isRoom) return <Outlet />;
-  if (isVoteDetails) return <Outlet />;
-
-  const sidebarBg = useColorModeValue("coffee.200", "gray.800");
-  const borderColor = useColorModeValue("gray.200", "gray.700");
+  // Early return for specific routes
+  if (isCreateVote || isJoinRoom || isRoom || isVoteDetails) {
+    return <Outlet />;
+  }
 
   const sidebarLinks = [
     {
@@ -115,7 +118,7 @@ const DashboardLayout = () => {
     {
       section: "Other",
       links: [
-        { to: "/settings", icon: Settings, label: "Settings" },
+        { to: "/dashboard/settings", icon: Settings, label: "Settings" },
         { icon: DoorOpen, label: "Logout", onClick: logout },
       ],
     },
@@ -142,7 +145,7 @@ const DashboardLayout = () => {
           borderColor={borderColor}
         >
           {!isCollapsed && (
-            <Text fontWeight="bold" fontSize={20}>
+            <Text fontWeight="bold" fontSize={20} color={textColor}>
               Polls.io
             </Text>
           )}
@@ -188,7 +191,7 @@ const DashboardLayout = () => {
                 py={2}
                 fontSize="sm"
                 fontWeight="bold"
-                color="gray.600"
+                color={subTextColor}
               >
                 {section.section}
               </Text>
@@ -209,12 +212,12 @@ const DashboardLayout = () => {
       </Box>
 
       {/* Main Content */}
-      <Box flex={1} overflow="auto">
+      <Box flex={1} overflow="auto" bg={colorMode === "light" ? "white" : "gray.900"}>
         <Outlet />
       </Box>
 
       {/* Right Sidebar */}
-      <Box p={5} w={"340px"} bg={"milk.500"}>
+      <Box p={5} w={"340px"} bg={colorMode === "light" ? "milk.500" : "coffee.900"}>
         <TimeStatus />
       </Box>
     </Flex>

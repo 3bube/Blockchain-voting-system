@@ -7,12 +7,19 @@ import {
   useToast,
   VStack,
   Divider,
+  useColorMode,
+  useColorModeValue,
 } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import { Copy } from "lucide-react";
 
 const VoteCard = ({ vote, accessCode }) => {
+  const { colorMode } = useColorMode();
+  const cardBg = useColorModeValue("white", "gray.800");
+  const borderColor = useColorModeValue("gray.100", "gray.700");
+  const textColor = useColorModeValue("gray.800", "white");
+
   const getTimeRemaining = (endTime) => {
     const end = new Date(endTime);
     const now = new Date();
@@ -41,7 +48,6 @@ const VoteCard = ({ vote, accessCode }) => {
     switch (status) {
       case "pending":
         return "yellow";
-      /*************  ✨ Codeium Command 🌟  *************/
       case "active":
       case "new":
         return "green";
@@ -91,14 +97,17 @@ const VoteCard = ({ vote, accessCode }) => {
 
   return (
     <Box
-      bg="white"
+      bg={cardBg}
       p={4}
       borderRadius="lg"
       shadow="sm"
       border="1px"
-      borderColor="gray.100"
+      borderColor={borderColor}
+      color={textColor}
       _hover={{ shadow: "md" }}
       transition="all 0.2s"
+      onClick={handleVoteDetailsClick(vote._id)}
+      cursor="pointer"
     >
       <VStack align="stretch" spacing={3}>
         <HStack justify="space-between">
@@ -132,14 +141,14 @@ const VoteCard = ({ vote, accessCode }) => {
         <Divider />
 
         <Box>
-          <Text fontSize="sm" color="gray.600" mb={2}>
+          <Text fontSize="sm" color={colorMode === "dark" ? "white" : "gray.600"} mb={2}>
             Candidates:
           </Text>
           {vote.candidates.map((candidate, index) => (
             <Box key={index} mb={2}>
               <HStack justify="space-between" mb={1}>
                 <Text fontSize="sm">{candidate.name}</Text>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color={colorMode === "dark" ? "white" : "gray.600"}>
                   {candidate.voteCount} votes
                 </Text>
               </HStack>
@@ -153,7 +162,7 @@ const VoteCard = ({ vote, accessCode }) => {
           ))}
         </Box>
 
-        <HStack justify="space-between" fontSize="sm" color="gray.600">
+        <HStack justify="space-between" fontSize="sm" color={colorMode === "dark" ? "white" : "gray.600"}>
           <Text>Total Votes: {totalVotes}</Text>
           <Text>Time Remaining: {getTimeRemaining(vote.endTime)}</Text>
         </HStack>
@@ -164,7 +173,7 @@ const VoteCard = ({ vote, accessCode }) => {
 
 VoteCard.propTypes = {
   vote: PropTypes.shape({
-    id: PropTypes.string.isRequired,
+    id: PropTypes.string,
     title: PropTypes.string.isRequired,
     startTime: PropTypes.string.isRequired,
     accessCode: PropTypes.string,

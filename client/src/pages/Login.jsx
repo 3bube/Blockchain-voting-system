@@ -159,6 +159,11 @@ const Login = () => {
                   width="100%"
                   isLoading={loading}
                   _hover={{ bg: "coffee.600" }}
+                  _disabled={{
+                    _hover: {
+                      bg: "coffee.500",
+                    },
+                  }}
                   _active={{ bg: "coffee.700" }}
                   rightIcon={<ArrowRight size={18} />}
                 >
@@ -166,7 +171,7 @@ const Login = () => {
                 </Button>
 
                 <Text color={mutedColor} fontSize="sm" textAlign="center">
-                  Don't have an account?{" "}
+                  Don&apos;t have an account?{" "}
                   <Link
                     as={RouterLink}
                     to="/signup"

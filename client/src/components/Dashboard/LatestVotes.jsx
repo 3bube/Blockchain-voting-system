@@ -1,10 +1,8 @@
-import React from "react";
 import {
   Box,
   Text,
   Heading,
   HStack,
-  IconButton,
   Button,
   SimpleGrid,
   Skeleton,
@@ -21,8 +19,7 @@ const LatestVotes = () => {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["votes"],
     queryFn: async () => await getAllVotes(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnMount: false,
+    refetchOnMount: true,
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
   });
@@ -40,6 +37,32 @@ const LatestVotes = () => {
   const votes = data?.votes || [];
 
   const navigate = useNavigate();
+
+  if (isError) {
+    console.error(error);
+    return (
+      <Box p={4} my={10} borderRadius={8}>
+        <HStack
+          alignItems={"center"}
+          justifyContent={"space-between"}
+          w={"full"}
+          mb={6}
+        >
+          <Heading color={"black"} fontWeight={"light"}>
+            Latest Votes
+          </Heading>
+        </HStack>
+        <Box mt={8}>
+          <Text fontSize="xl" fontWeight="bold" mb={4}>
+            Latest Votes
+          </Text>
+          <SimpleGrid columns={1} spacing={4}>
+            <Text>{error.message}</Text>
+          </SimpleGrid>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box p={4} my={10} borderRadius={8}>

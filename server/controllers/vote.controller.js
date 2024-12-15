@@ -115,6 +115,8 @@ export const castVote = async (req, res) => {
     const voteId = req.params.id;
     const userId = req.user._id;
 
+    console.log(candidateIndex, voteId);
+
     const vote = await Vote.findById(voteId);
 
     if (!vote) {
@@ -125,13 +127,13 @@ export const castVote = async (req, res) => {
     }
 
     // Check if vote is active
-    const now = new Date();
-    if (now < new Date(vote.startTime) || now > new Date(vote.endTime)) {
-      return res.status(400).json({
-        success: false,
-        message: "Voting is not currently active",
-      });
-    }
+    // const now = new Date();
+    // if (now < new Date(vote.startTime) || now > new Date(vote.endTime)) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Voting is not currently active",
+    //   });
+    // }
 
     // Check if user has already voted
     const hasVoted = vote.voters.some(

@@ -42,7 +42,7 @@ export const getVoteByRoomId = async (id) => {
 };
 
 export const castVote = async (voteId, candidateIndex) => {
-  if (!voteId || candidateIndex)
+  if (!voteId || !candidateIndex)
     throw new Error("Provide the vote id and candidate index");
   try {
     const response = await newRequest.post(`vote/${voteId}/cast`, {

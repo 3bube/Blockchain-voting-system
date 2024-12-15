@@ -231,6 +231,13 @@ const Room = () => {
       });
     } catch (error) {
       console.error("Error casting vote:", error.message);
+      toast({
+        title: "Error",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
     } finally {
       setLoading(false);
     }
