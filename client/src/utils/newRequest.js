@@ -26,23 +26,23 @@ newRequest.interceptors.request.use(
   }
 );
 
-// Response interceptor
-newRequest.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+// // Response interceptor
+// newRequest.interceptors.response.use(
+//   (response) => response,
+//   async (error) => {
+//     const originalRequest = error.config;
 
-    // Handle 401 errors (unauthorized)
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+//     // Handle 401 errors (unauthorized)
+//     if (error.response?.status === 401 && !originalRequest._retry) {
+//       originalRequest._retry = true;
 
-      // Clear token and redirect to login
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-    }
+//       // Clear token and redirect to login
+//       localStorage.removeItem("token");
+//       window.location.href = "/login";
+//     }
 
-    return Promise.reject(error);
-  }
-);
+//     return Promise.reject(error);
+//   }
+// );
 
 export default newRequest;

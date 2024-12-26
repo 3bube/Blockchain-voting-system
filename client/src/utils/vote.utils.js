@@ -59,9 +59,7 @@ export const getVotingHistory = async () => {
     const response = await newRequest.get("/vote/history");
     return response.data;
   } catch (error) {
-    throw new Error(
-      error.response?.data?.message || "Error fetching voting history"
-    );
+    throw new Error(error.response || "Error fetching voting history");
   }
 };
 

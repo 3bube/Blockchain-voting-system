@@ -115,8 +115,6 @@ export const castVote = async (req, res) => {
     const voteId = req.params.id;
     const userId = req.user._id;
 
-    console.log(candidateIndex, voteId);
-
     const vote = await Vote.findById(voteId);
 
     if (!vote) {
@@ -190,18 +188,26 @@ export const castVote = async (req, res) => {
 export const getUserVotingHistory = async (req, res) => {
   try {
     const userId = req.user._id;
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "User not authenticated." });
+    }
+
     const user = await User.findById(userId).populate("votingHistory");
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    }
 
     res.status(200).json({
       success: true,
       votingHistory: user.votingHistory,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching voting history",
-      error: error.message,
-    });
+    console.error("Error fetching user voting history:", error);
+    res.status(500).json({ success: false, message: "Server error." });
   }
 };
 

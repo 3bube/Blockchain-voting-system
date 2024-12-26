@@ -61,6 +61,7 @@ export const login = async (req, res) => {
 
     // Check for user email
     const user = await User.findOne({ email });
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -70,6 +71,7 @@ export const login = async (req, res) => {
 
     // Check password
     const isMatch = await user.comparePassword(password);
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,

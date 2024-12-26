@@ -87,9 +87,11 @@ export const AuthProvider = ({ children }) => {
         email,
         password,
       });
+      console.log("Login response:", response.data); // Debugging log
       const { token, ...userData } = response.data.data;
       localStorage.setItem("token", token);
       dispatch({ type: AUTH_ACTIONS.SET_USER, payload: userData });
+      console.log("User data set:", userData); // Debugging log
       return { success: true };
     } catch (error) {
       const errorMessage = error.response?.data?.message || "Login failed";
@@ -97,6 +99,7 @@ export const AuthProvider = ({ children }) => {
         type: AUTH_ACTIONS.AUTH_ERROR,
         payload: errorMessage,
       });
+      console.error("Login error:", errorMessage); // Debugging log
       return { success: false, message: errorMessage };
     }
   };

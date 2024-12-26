@@ -38,8 +38,10 @@ const Login = () => {
     event.preventDefault();
     try {
       setLoading(true);
-      await login(email, password);
-      navigate("/dashboard");
+      const { success } = await login(email, password);
+      if (success) {
+        navigate("/dashboard");
+      }
     } catch (error) {
       console.error(error);
     } finally {

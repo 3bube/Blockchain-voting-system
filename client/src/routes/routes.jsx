@@ -12,7 +12,7 @@ import CreateVote from "../components/Dashboard/CreateVote";
 import JoinRoom from "../components/Dashboard/JoinRoom";
 import Settings from "../components/Dashboard/Settings";
 import VoteDetails from "../pages/VoteDetails";
-import ProtectedRoute from "../components/ProtectedRoute";
+// import ProtectedRoute from "../components/ProtectedRoute";
 
 export const AppRoutes = () => (
   <Routes>
@@ -21,14 +21,7 @@ export const AppRoutes = () => (
       <Route path="signup" element={<SignUp />} />
       <Route path="login" element={<Login />} />
     </Route>
-    <Route
-      path="/dashboard"
-      element={
-        <ProtectedRoute>
-          <DashboardLayout />
-        </ProtectedRoute>
-      }
-    >
+    <Route path="/dashboard" element={<DashboardLayout />}>
       <Route index element={<Dashboard />} />
       <Route path="vote" element={<OngoingVote />} />
       <Route path="history" element={<History />} />
