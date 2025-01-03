@@ -25,10 +25,6 @@ const userSchema = new mongoose.Schema(
       enum: ["voter", "admin"],
       default: "voter",
     },
-    isVerified: {
-      type: Boolean,
-      default: false,
-    },
     votes: {
       type: Number,
       default: 0,
@@ -36,7 +32,7 @@ const userSchema = new mongoose.Schema(
     votingHistory: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Poll",
+        ref: "Vote",
       },
     ],
   },

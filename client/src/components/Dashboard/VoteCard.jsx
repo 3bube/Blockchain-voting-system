@@ -106,8 +106,6 @@ const VoteCard = ({ vote, accessCode }) => {
       color={textColor}
       _hover={{ shadow: "md" }}
       transition="all 0.2s"
-      onClick={handleVoteDetailsClick(vote._id)}
-      cursor="pointer"
     >
       <VStack align="stretch" spacing={3}>
         <HStack justify="space-between">
@@ -141,14 +139,21 @@ const VoteCard = ({ vote, accessCode }) => {
         <Divider />
 
         <Box>
-          <Text fontSize="sm" color={colorMode === "dark" ? "white" : "gray.600"} mb={2}>
+          <Text
+            fontSize="sm"
+            color={colorMode === "dark" ? "white" : "gray.600"}
+            mb={2}
+          >
             Candidates:
           </Text>
           {vote.candidates.map((candidate, index) => (
             <Box key={index} mb={2}>
               <HStack justify="space-between" mb={1}>
                 <Text fontSize="sm">{candidate.name}</Text>
-                <Text fontSize="sm" color={colorMode === "dark" ? "white" : "gray.600"}>
+                <Text
+                  fontSize="sm"
+                  color={colorMode === "dark" ? "white" : "gray.600"}
+                >
                   {candidate.voteCount} votes
                 </Text>
               </HStack>
@@ -162,7 +167,11 @@ const VoteCard = ({ vote, accessCode }) => {
           ))}
         </Box>
 
-        <HStack justify="space-between" fontSize="sm" color={colorMode === "dark" ? "white" : "gray.600"}>
+        <HStack
+          justify="space-between"
+          fontSize="sm"
+          color={colorMode === "dark" ? "white" : "gray.600"}
+        >
           <Text>Total Votes: {totalVotes}</Text>
           <Text>Time Remaining: {getTimeRemaining(vote.endTime)}</Text>
         </HStack>

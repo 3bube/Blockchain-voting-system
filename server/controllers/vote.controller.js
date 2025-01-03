@@ -137,14 +137,13 @@ export const castVote = async (req, res) => {
     const hasVoted = vote.voters.some(
       (voter) => voter.user.toString() === userId.toString()
     );
+
     if (hasVoted) {
       return res.status(400).json({
         success: false,
         message: "You have already voted",
       });
     }
-
-    console.log("Has voted:", hasVoted);
 
     // Check if candidate index is valid
     if (candidateIndex < 0 || candidateIndex >= vote.candidates.length) {
@@ -156,6 +155,7 @@ export const castVote = async (req, res) => {
 
     // Update vote counts and add voter
     vote.candidates[candidateIndex].voteCount += 1;
+
     vote.voters.push({
       user: userId,
       votedFor: candidateIndex,
@@ -181,33 +181,6 @@ export const castVote = async (req, res) => {
       message: "Error casting vote",
       error: error.message,
     });
-  }
-};
-
-// Get user's voting history
-export const getUserVotingHistory = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    if (!userId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User not authenticated." });
-    }
-
-    const user = await User.findById(userId).populate("votingHistory");
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found." });
-    }
-
-    res.status(200).json({
-      success: true,
-      votingHistory: user.votingHistory,
-    });
-  } catch (error) {
-    console.error("Error fetching user voting history:", error);
-    res.status(500).json({ success: false, message: "Server error." });
   }
 };
 
@@ -303,6 +276,26 @@ export const deleteVote = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error deleting vote",
+      error: error.message,
+    });
+  }
+};
+
+export const getVotingHistory = async (req, res) => {
+  console.log("getVotingHistory");
+  try {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId).populate("votingHistory");
+
+    res.status(200).json({
+      success: true,
+      votingHistory: user.votingHistory,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching voting history",
       error: error.message,
     });
   }

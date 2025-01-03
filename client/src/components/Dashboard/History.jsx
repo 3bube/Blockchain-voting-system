@@ -30,10 +30,13 @@ const votingHistory = [
   { id: 5, date: "2023-07-18", topic: "Public Library Funding", vote: "yes" },
 ];
 
-function VoteCard({ date, topic, vote }) {
-  const bgColor = useColorModeValue("white", "gray.800");
+function VoteCard({ vote }) {
+  const bgColor = useColorModeValue("white", "milk.500");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const textColor = useColorModeValue("gray.600", "gray.400");
+
+  // Get the voted candidate from the voters array
+  const votedCandidate = vote?.candidates?.[vote?.voters?.[0]?.votedFor];
 
   return (
     <Box
@@ -51,27 +54,32 @@ function VoteCard({ date, topic, vote }) {
         <Flex alignItems="center" color={textColor}>
           <Calendar strokeWidth={1.5} size={20} />
           <Text ml={2} fontSize="sm">
-            {new Date(date).toLocaleDateString()}
+            {new Date(vote?.voters?.[0]?.votedAt).toLocaleDateString()}
           </Text>
         </Flex>
-        <Badge colorScheme={vote === "yes" ? "green" : "red"} fontSize="sm">
-          {vote.toUpperCase()}
+        <Badge
+          colorScheme={vote?.status === "active" ? "green" : "red"}
+          fontSize="sm"
+        >
+          {vote?.status?.toUpperCase()}
         </Badge>
       </Flex>
       <Heading as="h3" size="md" mb={2}>
-        {topic}
+        {vote?.title}
       </Heading>
       <Text color={textColor} fontSize="sm">
-        You voted on this issue.
+        You voted for {votedCandidate?.name}
+      </Text>
+      <Text color={textColor} fontSize="sm" mt={2}>
+        Vote period: {new Date(vote?.startTime).toLocaleDateString()} -{" "}
+        {new Date(vote?.endTime).toLocaleDateString()}
       </Text>
       <Flex mt={4} justifyContent="flex-end">
         <IconButton
-          icon={
-            vote === "yes" ? <ThumbsUp size={20} /> : <ThumbsDown size={20} />
-          }
-          aria-label={vote === "yes" ? "Thumbs up" : "Thumbs down"}
+          icon={<ThumbsUp size={20} />}
+          aria-label="Vote cast"
           variant="ghost"
-          colorScheme={vote === "yes" ? "green" : "red"}
+          colorScheme="blue"
           size="sm"
         />
       </Flex>
@@ -89,10 +97,13 @@ function VotingHistoryList() {
     refetchOnWindowFocus: false,
   });
 
+  if (isLoading) return <LoadingSpinner />;
+  if (isError) return <Text>Error loading voting history</Text>;
+
   return (
     <VStack spacing={6} align="stretch">
-      {votingHistory.map((vote) => (
-        <VoteCard key={vote.id} {...vote} />
+      {data?.votingHistory?.map((vote) => (
+        <VoteCard key={vote._id} vote={vote} />
       ))}
     </VStack>
   );

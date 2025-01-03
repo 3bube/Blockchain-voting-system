@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import http from "http";
 import socketService from "./services/socket.service.js";
+import cron from "node-cron";
+import Vote from "./models/vote.models.js";
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +34,14 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
+
+cron.schedule("* * * * *", async () => {
+  try {
+    await Vote.updateVoteStatus();
+  } catch (error) {
+    console.error("Failed to update vote status:", error);
+  }
+});
 
 // Middleware
 app.use(cors(corsOptions));

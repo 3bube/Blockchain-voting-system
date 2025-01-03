@@ -8,12 +8,16 @@ const UpcomingVotesCard = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ["votes"],
-    queryFn: getAllVotes,
+    queryFn: async () => getAllVotes(),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  console.log(data?.votes?.map((vote) => new Date(vote.startTime)));
+
   const upcomingVotes =
     data?.votes?.filter((vote) => new Date(vote.startTime) > new Date()) || [];
+
+  console.log(upcomingVotes);
 
   useEffect(() => {
     if (currentIndex >= upcomingVotes.length && upcomingVotes.length > 0) {

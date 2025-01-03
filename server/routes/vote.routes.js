@@ -6,8 +6,8 @@ import {
   getVoteByRoomId,
   castVote,
   updateVote,
-  getUserVotingHistory,
   endVote,
+  getVotingHistory,
   deleteVote,
 } from "../controllers/vote.controller.js";
 
@@ -19,14 +19,14 @@ router.post("/create", protect, createVote);
 // Get all votes
 router.get("/all", protect, getAllVotes);
 
+// Get voting history
+router.get("/history", protect, getVotingHistory);
+
 // Get specific vote by ID
 router.get("/:id", protect, getVoteByRoomId);
 
 // Cast a vote (requires authentication)
 router.post("/:id/cast", protect, castVote);
-
-// Get user's voting history (requires authentication)
-router.get("/history", protect, getUserVotingHistory);
 
 // Update a vote (requires authentication)
 router.post("/update/:id", protect, updateVote);
