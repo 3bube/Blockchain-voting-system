@@ -170,7 +170,7 @@ const Room = () => {
   // calculate total votes
   const totalVotes =
     vote?.candidates?.reduce(
-      (sum, candidate) => sum + (candidate.voteCount || 0),
+      (sum, candidate) => sum + (candidate.voteCount ?? 0),
       0
     ) ?? 0;
 
