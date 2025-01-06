@@ -108,7 +108,7 @@ const DashboardLayout = () => {
         //   label: "Ended Vote",
         // },
         { to: "/dashboard/history", icon: History, label: "History" },
-        { to: "/dashboard/trash", icon: Trash, label: "Trash" },
+        { to: "/dashboard/test", icon: Trash, label: "Trash" },
       ],
     },
     {
@@ -212,12 +212,20 @@ const DashboardLayout = () => {
       </Box>
 
       {/* Main Content */}
-      <Box flex={1} overflow="auto" bg={colorMode === "light" ? "white" : "gray.900"}>
+      <Box
+        flex={1}
+        overflow="auto"
+        bg={colorMode === "light" ? "white" : "gray.900"}
+      >
         <Outlet />
       </Box>
 
       {/* Right Sidebar */}
-      <Box p={5} w={"340px"} bg={colorMode === "light" ? "milk.500" : "coffee.900"}>
+      <Box
+        p={5}
+        w={"340px"}
+        bg={colorMode === "light" ? "milk.500" : "coffee.900"}
+      >
         <TimeStatus />
       </Box>
     </Flex>

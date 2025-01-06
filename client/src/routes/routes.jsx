@@ -12,6 +12,7 @@ import CreateVote from "../components/Dashboard/CreateVote";
 import JoinRoom from "../components/Dashboard/JoinRoom";
 import Settings from "../components/Dashboard/Settings";
 import VoteDetails from "../pages/VoteDetails";
+import Test from "../components/test";
 // import ProtectedRoute from "../components/ProtectedRoute";
 
 export const AppRoutes = () => (
@@ -30,6 +31,7 @@ export const AppRoutes = () => (
       <Route path="room/:id" element={<Room />} />
       <Route path="vote-details" element={<VoteDetails />} />
       <Route path="settings" element={<Settings />} />
+      <Route path="test" element={<Test />} />
       {/* Add more dashboard routes here */}
     </Route>
   </Routes>
