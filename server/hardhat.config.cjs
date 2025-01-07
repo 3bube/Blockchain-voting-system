@@ -5,10 +5,13 @@ require("dotenv").config();
 module.exports = {
   solidity: "0.8.24",
   networks: {
-    goerli: {
-      url: process.env.NETWORK,
+    localhost: {
+      url: "http://127.0.0.1:8545", // Local Hardhat network
       accounts: [process.env.ETH_PRIVATE_KEY],
     },
+    // goerli: {
+    //   url: process.env.NETWORK,
+    //   accounts: [process.env.ETH_PRIVATE_KEY],
+    // },
   },
 };
-  

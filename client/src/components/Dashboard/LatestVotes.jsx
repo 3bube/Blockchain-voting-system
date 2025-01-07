@@ -68,64 +68,58 @@ const LatestVotes = () => {
 
   return (
     <Box p={4} my={10} borderRadius={8}>
-      {isVotesEmpty ? (
-        <Text fontSize="xl" fontWeight="bold" textAlign={"center"} mb={4}>
-          No votes available
-        </Text>
-      ) : (
-        <Box>
-          <HStack
-            alignItems={"center"}
-            justifyContent={"space-between"}
-            w={"full"}
-            mb={6}
+      <Box>
+        <HStack
+          alignItems={"center"}
+          justifyContent={"space-between"}
+          w={"full"}
+          mb={6}
+        >
+          <Heading color={"black"} fontWeight={"light"}>
+            Latest Votes
+          </Heading>
+
+          <Button
+            leftIcon={<PlusSquareIcon />}
+            bg={"coffee.600"}
+            transition={"all 0.2s"}
+            transitionDuration={"0.2s"}
+            _hover={{ bg: "coffee.700" }}
+            boxShadow={"md"}
+            colorScheme="blackAlpha"
+            onClick={() => navigate("/dashboard/create-vote")}
           >
-            <Heading color={"black"} fontWeight={"light"}>
-              Latest Votes
-            </Heading>
+            Create Vote
+          </Button>
+        </HStack>
 
-            <Button
-              leftIcon={<PlusSquareIcon />}
-              bg={"coffee.600"}
-              transition={"all 0.2s"}
-              transitionDuration={"0.2s"}
-              _hover={{ bg: "coffee.700" }}
-              boxShadow={"md"}
-              colorScheme="blackAlpha"
-              onClick={() => navigate("/dashboard/create-vote")}
-            >
-              Create Vote
-            </Button>
-          </HStack>
-
-          <Box mt={8}>
-            <Text fontSize="xl" fontWeight="bold" mb={4}>
-              Latest Votes
-            </Text>
-            <SimpleGrid columns={1} spacing={4}>
-              {isLoading ? (
-                <Skeleton
-                  startColor="coffee.300"
-                  endColor="coffee.600"
-                  w="full"
-                  p={4}
-                  borderRadius={8}
-                >
-                  <SkeletonText noOfLines={4} />
-                </Skeleton>
-              ) : (
-                votes?.map((vote, index) => (
-                  <VoteCard
-                    key={index}
-                    vote={vote}
-                    accessCode={accessCodes[index]}
-                  />
-                ))
-              )}
-            </SimpleGrid>
-          </Box>
+        <Box mt={8}>
+          <Text fontSize="xl" fontWeight="bold" mb={4}>
+            Latest Votes
+          </Text>
+          <SimpleGrid columns={1} spacing={4}>
+            {isLoading ? (
+              <Skeleton
+                startColor="coffee.300"
+                endColor="coffee.600"
+                w="full"
+                p={4}
+                borderRadius={8}
+              >
+                <SkeletonText noOfLines={4} />
+              </Skeleton>
+            ) : (
+              votes?.map((vote, index) => (
+                <VoteCard
+                  key={index}
+                  vote={vote}
+                  accessCode={accessCodes[index]}
+                />
+              ))
+            )}
+          </SimpleGrid>
         </Box>
-      )}
+      </Box>
     </Box>
   );
 };

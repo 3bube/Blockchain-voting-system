@@ -10,6 +10,8 @@ contract VotingSystem {
         uint256 endTime;
         bool isActive;
         address creator;
+        uint256 maxParticipants;
+        uint256 currentParticipants;
     }
 
     struct Option {
@@ -61,11 +63,39 @@ contract VotingSystem {
         string memory _description,
         string[] memory _optionNames,
         uint256 _startTime,
-        uint256 _endTime
+        uint256 _endTime,
+        uint256 _maxParticipants
     ) external returns (uint256) {
-        require(_startTime >= block.timestamp, "Start time must be in the future");
-        require(_endTime > _startTime, "End time must be after start time");
+        require(bytes(_title).length > 0, "Title cannot be empty");
+        require(bytes(_description).length > 0, "Description cannot be empty");
+        require(
+            _startTime >= block.timestamp, 
+            string(abi.encodePacked(
+                "Start time must be in the future. Given: ", 
+                toString(_startTime),
+                ", Current: ",
+                toString(block.timestamp)
+            ))
+        );
+        require(
+            _endTime > _startTime, 
+            string(abi.encodePacked(
+                "End time must be after start time. Start: ",
+                toString(_startTime),
+                ", End: ",
+                toString(_endTime)
+            ))
+        );
         require(_optionNames.length >= 2, "Must have at least 2 options");
+        require(_maxParticipants > 0, "Max participants must be greater than 0");
+        require(_maxParticipants <= 1000, "Max participants cannot exceed 1000");
+
+        for (uint256 i = 0; i < _optionNames.length; i++) {
+            require(
+                bytes(_optionNames[i]).length > 0, 
+                string(abi.encodePacked("Option name at index ", toString(i), " cannot be empty"))
+            );
+        }
 
         voteCounter++;
         uint256 voteId = voteCounter;
@@ -77,7 +107,9 @@ contract VotingSystem {
             startTime: _startTime,
             endTime: _endTime,
             isActive: true,
-            creator: msg.sender
+            creator: msg.sender,
+            maxParticipants: _maxParticipants,
+            currentParticipants: 0
         });
 
         for (uint256 i = 0; i < _optionNames.length; i++) {
@@ -93,6 +125,25 @@ contract VotingSystem {
         return voteId;
     }
 
+    function toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
     function castVote(uint256 _voteId, uint256 _optionId) 
         external 
         voteExists(_voteId)
@@ -100,6 +151,10 @@ contract VotingSystem {
         hasNotVoted(_voteId)
     {
         require(_optionId < optionCounts[_voteId], "Invalid option");
+        require(
+            votes[_voteId].currentParticipants < votes[_voteId].maxParticipants,
+            "Maximum participants reached"
+        );
 
         voters[_voteId][msg.sender] = Voter({
             hasVoted: true,
@@ -107,6 +162,7 @@ contract VotingSystem {
         });
 
         voteOptions[_voteId][_optionId].voteCount++;
+        votes[_voteId].currentParticipants++;
         emit VoteCast(_voteId, msg.sender, _optionId);
     }
 
@@ -130,7 +186,9 @@ contract VotingSystem {
             uint256 startTime,
             uint256 endTime,
             bool isActive,
-            address creator
+            address creator,
+            uint256 maxParticipants,
+            uint256 currentParticipants
         )
     {
         Vote memory vote = votes[_voteId];
@@ -140,7 +198,9 @@ contract VotingSystem {
             vote.startTime,
             vote.endTime,
             vote.isActive,
-            vote.creator
+            vote.creator,
+            vote.maxParticipants,
+            vote.currentParticipants
         );
     }
 

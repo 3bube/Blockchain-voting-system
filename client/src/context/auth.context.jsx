@@ -1,5 +1,6 @@
-import React, { createContext, useReducer, useEffect } from "react";
+import { createContext, useReducer, useEffect, useState } from "react";
 import newRequest from "../utils/newRequest";
+import { ethers } from "ethers";
 
 export const AuthContext = createContext();
 
@@ -51,8 +52,38 @@ const authReducer = (state, action) => {
   }
 };
 
+const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS;
+
+const contractABI = [
+  {
+    inputs: [
+      { internalType: "string", name: "_title", type: "string" },
+      { internalType: "string", name: "_description", type: "string" },
+      { internalType: "string[]", name: "_optionNames", type: "string[]" },
+      { internalType: "uint256", name: "_startTime", type: "uint256" },
+      { internalType: "uint256", name: "_endTime", type: "uint256" },
+      { internalType: "uint256", name: "_maxParticipants", type: "uint256" },
+    ],
+    name: "createVote",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "_voteId", type: "uint256" }],
+    name: "getVoteResults",
+    outputs: [
+      { internalType: "string[]", name: "names", type: "string[]" },
+      { internalType: "uint256[]", name: "counts", type: "uint256[]" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+];
+
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const [contract, setContract] = useState(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -78,6 +109,30 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkUser();
+  }, []);
+
+  const initializeContract = async () => {
+    try {
+      // Use Hardhat's local JSON-RPC provider
+      const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+
+      // Use the first pre-funded account from Hardhat
+      const signer = await provider.getSigner(0);
+
+      // Create a contract instance with the signer
+      const contractInstance = new ethers.Contract(
+        contractAddress,
+        contractABI,
+        signer
+      );
+      setContract(contractInstance);
+    } catch (error) {
+      console.error("Error initializing contract:", error);
+    }
+  };
+
+  useEffect(() => {
+    initializeContract();
   }, []);
 
   const login = async (email, password) => {
@@ -135,6 +190,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     ...state,
+    contract,
     login,
     register,
     logout,

@@ -53,6 +53,10 @@ const voteSchema = new mongoose.Schema(
       enum: ["pending", "new", "active", "completed", "closed"],
       default: "new",
     },
+    voteId: {
+      type: String,
+      required: true,
+    },
   },
   { timestamps: true }
 );

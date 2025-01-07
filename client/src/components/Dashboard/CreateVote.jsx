@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Box,
   Button,
@@ -23,14 +23,17 @@ import { X, Plus, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createVote } from "../../utils/vote.utils";
 import { generateRoomCode } from "../../utils/vote.utils";
+import useAuth from "../../context/useAuth";
+import { ethers } from "ethers";
 
 const CreateVote = () => {
+  const { contract } = useAuth();
   const [candidates, setCandidates] = useState([{ name: "" }]);
   const [title, setTitle] = useState("");
   const [startTime, setStartTime] = useState("");
   const [roomName, setRoomName] = useState("");
   const [description, setDescription] = useState("");
-  const [maxParticipants, setMaxParticipants] = useState(0);
+  const [maxParticipants, setMaxParticipants] = useState(2);
   const [endTime, setEndTime] = useState("");
   const [errors, setErrors] = useState({
     startTime: "",
@@ -111,17 +114,90 @@ const CreateVote = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateDateTime(startTime, endTime)) {
+    if (!contract) {
       toast({
-        title: "Invalid date/time",
-        description: "Please check the start and end times",
+        title: "Error",
+        description: "Blockchain connection not initialized",
         status: "error",
         duration: 3000,
       });
       return;
     }
+
     setLoading(true);
     try {
+      // Convert datetime strings to Unix timestamps (seconds)
+      const startTimestamp = Math.floor(new Date(startTime).getTime() / 1000);
+      const endTimestamp = Math.floor(new Date(endTime).getTime() / 1000);
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+
+      // Extract candidate names
+      const candidateNames = candidates.map((c) => c.name);
+
+      // Client-side validation
+      if (!title || !description) {
+        throw new Error("Title and description are required");
+      }
+
+      if (candidateNames.length < 2) {
+        throw new Error("At least two candidates are required");
+      }
+
+      if (candidateNames.some((name) => !name.trim())) {
+        throw new Error("Candidate names cannot be empty");
+      }
+
+      if (startTimestamp < currentTimestamp) {
+        throw new Error("Start time must be in the future");
+      }
+
+      if (endTimestamp <= startTimestamp) {
+        throw new Error("End time must be after start time");
+      }
+
+      if (maxParticipants <= 0 || maxParticipants > 1000) {
+        throw new Error("Invalid number of maximum participants");
+      }
+
+      // console.log("Sending transaction with parameters:", {
+      //   title,
+      //   description,
+      //   candidateNames,
+      //   startTimestamp,
+      //   endTimestamp,
+      //   maxParticipants,
+      // });
+
+      // Create the vote on the blockchain
+      const tx = await contract.createVote(
+        title,
+        description,
+        candidateNames,
+        startTimestamp,
+        endTimestamp,
+        maxParticipants
+      );
+
+      // Wait for the transaction to be mined
+      const receipt = await tx.wait();
+
+      // Get the vote ID from the event
+      const voteCreatedEvent = receipt.logs[0]; // The first log should be our VoteCreated event
+
+      // Decode the event data
+      const eventInterface = new ethers.Interface([
+        "event VoteCreated(uint256 indexed voteId, string title, address creator)",
+      ]);
+
+      const decodedEvent = eventInterface.parseLog({
+        topics: voteCreatedEvent.topics,
+        data: voteCreatedEvent.data,
+      });
+
+      // Get the voteId from the decoded event
+      const voteId = decodedEvent.args[0].toString();
+
+      // Then create the vote in your backend
       const voteData = {
         title,
         startTime,
@@ -131,21 +207,24 @@ const CreateVote = () => {
         maxParticipants,
         roomDesc: description,
         accessCode,
+        voteId,
       };
 
       await createVote(voteData);
+
       navigate("/dashboard");
       toast({
         title: "Vote created",
-        description: "Your vote has been created successfully",
+        description:
+          "Your vote has been created successfully on both blockchain and backend",
         status: "success",
         duration: 3000,
       });
     } catch (error) {
-      console.error(error);
+      console.error("Error creating vote:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to create vote",
         status: "error",
         duration: 3000,
       });
@@ -236,7 +315,6 @@ const CreateVote = () => {
               <Slider
                 aria-label="maximum participants"
                 defaultValue={2}
-                value={maxParticipants}
                 min={2}
                 max={1000}
                 onChange={(val) => setMaxParticipants(val)}

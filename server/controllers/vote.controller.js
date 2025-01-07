@@ -14,6 +14,7 @@ export const createVote = async (req, res) => {
       roomDesc,
       maxParticipants,
       accessCode,
+      voteId,
     } = req.body;
     const userId = req.user._id;
 
@@ -30,6 +31,7 @@ export const createVote = async (req, res) => {
       endTime,
       candidates: formattedCandidates,
       creator: userId,
+      voteId,
     });
 
     await vote.save();
