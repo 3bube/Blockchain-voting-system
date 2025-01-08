@@ -11,11 +11,14 @@ import {
 import { PlusSquareIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import VoteCard from "./VoteCard";
-import { getAllVotes } from "../../utils/vote.utils";
+import { getAllVotes, getAllBlockchainVotes } from "../../utils/vote.utils";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { getRoomByVoteId } from "../../utils/room.utils";
+import useAuth from "../../context/useAuth";
 
 const LatestVotes = () => {
+  const { contract } = useAuth();
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["votes"],
     queryFn: async () => await getAllVotes(),
@@ -24,8 +27,20 @@ const LatestVotes = () => {
     refetchOnWindowFocus: false,
   });
 
+  const {
+    data: voteData,
+    isLoading: voteLoading,
+    isError: voteError,
+  } = useQuery({
+    queryKey: ["votes", contract],
+    queryFn: async () => await getAllBlockchainVotes(contract),
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: false,
+  });
+
   const roomQueries = useQueries({
-    queries: (data?.votes || []).map((vote) => ({
+    queries: (data?.votes ?? []).map((vote) => ({
       queryKey: ["room", vote._id],
       queryFn: () => getRoomByVoteId(vote._id),
       enabled: !!vote._id,

@@ -17,6 +17,7 @@ import { getVoteByRoomId, castVote } from "../utils/vote.utils";
 import { CircleCheck } from "lucide-react";
 import { useSocket } from "../contexts/SocketContext";
 import useAuth from "../context/useAuth";
+import { ethers } from "ethers";
 
 // VoteCard component
 const VoteCard = ({ candidate, selectedCandidate, onSelect, totalVotes }) => {
@@ -115,7 +116,7 @@ const Room = () => {
     refetchOnReconnect: false,
   });
 
-  const { currentUser } = useAuth();
+  const { currentUser, contract } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -191,6 +192,17 @@ const Room = () => {
       });
       return;
     }
+
+    if (!contract) {
+      toast({
+        title: "Error",
+        description: "Blockchain connection not initialized",
+        status: "error",
+        duration: 3000,
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       // find the index of the candidate
@@ -209,7 +221,15 @@ const Room = () => {
         return;
       }
 
-      // cast the vote
+      // First cast vote on the blockchain
+      const tx = await contract.castVote(vote.voteId, candidateIndex);
+      console.log("Vote transaction sent:", tx.hash);
+
+      // Wait for the transaction to be mined
+      const receipt = await tx.wait();
+      console.log("Vote transaction confirmed:", receipt);
+
+      // Then cast vote in your backend
       await castVote(vote._id, candidateIndex);
 
       // emit the vote event
@@ -224,16 +244,16 @@ const Room = () => {
 
       toast({
         title: "Success",
-        description: "Vote submitted successfully",
+        description: "Vote submitted successfully on blockchain and backend",
         status: "success",
         duration: 5000,
         isClosable: true,
       });
     } catch (error) {
-      console.error("Error casting vote:", error.message);
+      console.error("Error casting vote:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to cast vote",
         status: "error",
         duration: 5000,
         isClosable: true,

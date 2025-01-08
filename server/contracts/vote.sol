@@ -12,6 +12,9 @@ contract VotingSystem {
         address creator;
         uint256 maxParticipants;
         uint256 currentParticipants;
+        string roomName;
+        string accessCode;
+        string status; // Added status field
     }
 
     struct Option {
@@ -64,10 +67,14 @@ contract VotingSystem {
         string[] memory _optionNames,
         uint256 _startTime,
         uint256 _endTime,
-        uint256 _maxParticipants
+        uint256 _maxParticipants,
+        string memory _roomName,
+        string memory _accessCode
     ) external returns (uint256) {
         require(bytes(_title).length > 0, "Title cannot be empty");
         require(bytes(_description).length > 0, "Description cannot be empty");
+        require(bytes(_roomName).length > 0, "Room name cannot be empty");
+        require(bytes(_accessCode).length > 0, "Access code cannot be empty");
         require(
             _startTime >= block.timestamp, 
             string(abi.encodePacked(
@@ -109,7 +116,10 @@ contract VotingSystem {
             isActive: true,
             creator: msg.sender,
             maxParticipants: _maxParticipants,
-            currentParticipants: 0
+            currentParticipants: 0,
+            roomName: _roomName,
+            accessCode: _accessCode,
+            status: "new" // Set default status to "new"
         });
 
         for (uint256 i = 0; i < _optionNames.length; i++) {
@@ -173,6 +183,7 @@ contract VotingSystem {
     {
         require(votes[_voteId].isActive, "Vote already ended");
         votes[_voteId].isActive = false;
+        votes[_voteId].status = "ended"; // Update status to "ended" when vote ends
         emit VoteEnded(_voteId);
     }
 
@@ -188,7 +199,10 @@ contract VotingSystem {
             bool isActive,
             address creator,
             uint256 maxParticipants,
-            uint256 currentParticipants
+            uint256 currentParticipants,
+            string memory roomName,
+            string memory accessCode,
+            string memory status // Added status to the return parameters
         )
     {
         Vote memory vote = votes[_voteId];
@@ -200,7 +214,10 @@ contract VotingSystem {
             vote.isActive,
             vote.creator,
             vote.maxParticipants,
-            vote.currentParticipants
+            vote.currentParticipants,
+            vote.roomName,
+            vote.accessCode,
+            vote.status // Return the status of the vote
         );
     }
 
@@ -229,5 +246,34 @@ contract VotingSystem {
         returns (bool)
     {
         return voters[_voteId][_voter].hasVoted;
+    }
+
+ function getAllVotes() external view returns (Vote[] memory) {
+        uint256 totalVotes = voteCounter;
+
+        // Initialize the array of VoteSummary structs
+        Vote[] memory voteSummaries = new Vote[](totalVotes);
+
+        for (uint256 i = 1; i <= totalVotes; i++) {
+            Vote memory vote = votes[i];
+            if (vote.id != 0) { // Ensure the vote exists
+                voteSummaries[i - 1] = Vote({
+                    id: vote.id,
+                    title: vote.title,
+                    description: vote.description,
+                    startTime: vote.startTime,
+                    endTime: vote.endTime,
+                    isActive: vote.isActive,
+                    creator: vote.creator,
+                    maxParticipants: vote.maxParticipants,
+                    currentParticipants: vote.currentParticipants,
+                    roomName: vote.roomName,
+                    accessCode: vote.accessCode,
+                    status: vote.status
+                });
+            }
+        }
+
+        return voteSummaries;
     }
 }

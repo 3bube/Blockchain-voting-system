@@ -107,3 +107,43 @@ export const generateRoomCode = () => {
   }
   return roomCode;
 };
+
+export const getAllBlockchainVotes = async (contract) => {
+  try {
+    const [
+      voteIds,
+      titles,
+      descriptions,
+      startTimes,
+      endTimes,
+      isActives,
+      creators,
+      maxParticipants,
+      currentParticipants,
+      roomNames,
+      accessCodes,
+      statuses,
+    ] = await contract.getAllVotes();
+
+    // Format the data into an array of vote objects
+    const votes = voteIds.map((id, index) => ({
+      id: id.toString(),
+      title: titles[index],
+      description: descriptions[index],
+      startTime: new Date(Number(startTimes[index]) * 1000),
+      endTime: new Date(Number(endTimes[index]) * 1000),
+      isActive: isActives[index],
+      creator: creators[index],
+      maxParticipants: maxParticipants[index].toString(),
+      currentParticipants: currentParticipants[index].toString(),
+      roomName: roomNames[index],
+      accessCode: accessCodes[index],
+      status: statuses[index],
+    }));
+
+    return votes;
+  } catch (error) {
+    console.error("Error fetching blockchain votes:", error);
+    throw error;
+  }
+};

@@ -175,8 +175,12 @@ const CreateVote = () => {
         candidateNames,
         startTimestamp,
         endTimestamp,
-        maxParticipants
+        maxParticipants,
+        roomName,
+        accessCode
       );
+
+      console.log("Transaction sent:", tx);
 
       // Wait for the transaction to be mined
       const receipt = await tx.wait();
