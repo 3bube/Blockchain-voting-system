@@ -61,7 +61,7 @@ const VoteCard = ({ vote, accessCode }) => {
   };
 
   const getTotalVotes = () => {
-    return vote.candidates.reduce(
+    return vote?.candidates?.reduce(
       (sum, candidate) => sum + candidate.voteCount,
       0
     );
@@ -146,7 +146,7 @@ const VoteCard = ({ vote, accessCode }) => {
           >
             Candidates:
           </Text>
-          {vote.candidates.map((candidate, index) => (
+          {vote?.candidates?.map((candidate, index) => (
             <Box key={index} mb={2}>
               <HStack justify="space-between" mb={1}>
                 <Text fontSize="sm">{candidate.name}</Text>

@@ -248,32 +248,54 @@ contract VotingSystem {
         return voters[_voteId][_voter].hasVoted;
     }
 
- function getAllVotes() external view returns (Vote[] memory) {
-        uint256 totalVotes = voteCounter;
+function getAllVotes() external view returns (
+    uint256[] memory voteIds,
+    string[] memory titles,
+    string[] memory descriptions,
+    uint256[] memory startTimes,
+    uint256[] memory endTimes,
+    bool[] memory isActives,
+    address[] memory creators,
+    uint256[] memory maxParticipants,
+    uint256[] memory currentParticipants,
+    string[] memory roomNames,
+    string[] memory accessCodes,
+    string[] memory statuses
+) {
+    uint256 totalVotes = voteCounter;
 
-        // Initialize the array of VoteSummary structs
-        Vote[] memory voteSummaries = new Vote[](totalVotes);
+    // Initialize the arrays for each field
+    voteIds = new uint256[](totalVotes);
+    titles = new string[](totalVotes);
+    descriptions = new string[](totalVotes);
+    startTimes = new uint256[](totalVotes);
+    endTimes = new uint256[](totalVotes);
+    isActives = new bool[](totalVotes);
+    creators = new address[](totalVotes);
+    maxParticipants = new uint256[](totalVotes);
+    currentParticipants = new uint256[](totalVotes);
+    roomNames = new string[](totalVotes);
+    accessCodes = new string[](totalVotes);
+    statuses = new string[](totalVotes);
 
-        for (uint256 i = 1; i <= totalVotes; i++) {
-            Vote memory vote = votes[i];
-            if (vote.id != 0) { // Ensure the vote exists
-                voteSummaries[i - 1] = Vote({
-                    id: vote.id,
-                    title: vote.title,
-                    description: vote.description,
-                    startTime: vote.startTime,
-                    endTime: vote.endTime,
-                    isActive: vote.isActive,
-                    creator: vote.creator,
-                    maxParticipants: vote.maxParticipants,
-                    currentParticipants: vote.currentParticipants,
-                    roomName: vote.roomName,
-                    accessCode: vote.accessCode,
-                    status: vote.status
-                });
-            }
+    // Populate the arrays
+    for (uint256 i = 1; i <= totalVotes; i++) {
+        Vote memory vote = votes[i];
+        if (vote.id != 0) { // Ensure the vote exists
+            voteIds[i - 1] = vote.id;
+            titles[i - 1] = vote.title;
+            descriptions[i - 1] = vote.description;
+            startTimes[i - 1] = vote.startTime;
+            endTimes[i - 1] = vote.endTime;
+            isActives[i - 1] = vote.isActive;
+            creators[i - 1] = vote.creator;
+            maxParticipants[i - 1] = vote.maxParticipants;
+            currentParticipants[i - 1] = vote.currentParticipants;
+            roomNames[i - 1] = vote.roomName;
+            accessCodes[i - 1] = vote.accessCode;
+            statuses[i - 1] = vote.status;
         }
-
-        return voteSummaries;
     }
+}
+
 }

@@ -18,8 +18,15 @@ import useAuth from "../../context/useAuth";
 
 const LatestVotes = () => {
   const { contract } = useAuth();
+  const navigate = useNavigate();
 
-  const { data, isLoading, isError, error } = useQuery({
+  // Fetch backup data from MongoDB
+  const {
+    data: backUpData,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["votes"],
     queryFn: async () => await getAllVotes(),
     refetchOnMount: true,
@@ -27,8 +34,9 @@ const LatestVotes = () => {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch blockchain data
   const {
-    data: voteData,
+    data: voteBlockchainData,
     isLoading: voteLoading,
     isError: voteError,
   } = useQuery({
@@ -39,8 +47,22 @@ const LatestVotes = () => {
     refetchOnWindowFocus: false,
   });
 
+  console.log("voteBlockchainData", voteBlockchainData);
+
+  // Merge blockchain and MongoDB votes
+  const votes = (voteBlockchainData ?? []).map((blockchainVote) => {
+    const backupVote = backUpData?.votes?.find(
+      (backup) => backup._id === blockchainVote.id
+    );
+
+    return {
+      ...backupVote, // Fallback to backup data fields
+      ...blockchainVote, // Prioritize blockchain data fields
+    };
+  });
+
   const roomQueries = useQueries({
-    queries: (data?.votes ?? []).map((vote) => ({
+    queries: votes.map((vote) => ({
       queryKey: ["room", vote._id],
       queryFn: () => getRoomByVoteId(vote._id),
       enabled: !!vote._id,
@@ -48,10 +70,6 @@ const LatestVotes = () => {
   });
 
   const accessCodes = roomQueries.map((query) => query.data?.accessCode);
-
-  const votes = data?.votes || [];
-
-  const navigate = useNavigate();
 
   if (isError) {
     console.error(error);
@@ -113,7 +131,7 @@ const LatestVotes = () => {
             Latest Votes
           </Text>
           <SimpleGrid columns={1} spacing={4}>
-            {isLoading ? (
+            {voteLoading ? (
               <Skeleton
                 startColor="coffee.300"
                 endColor="coffee.600"
@@ -123,10 +141,12 @@ const LatestVotes = () => {
               >
                 <SkeletonText noOfLines={4} />
               </Skeleton>
+            ) : isVotesEmpty ? (
+              <Text>No votes available.</Text>
             ) : (
               votes?.map((vote, index) => (
                 <VoteCard
-                  key={index}
+                  key={vote.id ?? index}
                   vote={vote}
                   accessCode={accessCodes[index]}
                 />
