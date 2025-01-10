@@ -146,7 +146,7 @@ const VoteCard = ({ vote, accessCode }) => {
           >
             Candidates:
           </Text>
-          {vote?.candidates?.map((candidate, index) => (
+          {vote?.options?.map((candidate, index) => (
             <Box key={index} mb={2}>
               <HStack justify="space-between" mb={1}>
                 <Text fontSize="sm">{candidate.name}</Text>

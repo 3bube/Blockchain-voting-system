@@ -14,7 +14,7 @@ contract VotingSystem {
         uint256 currentParticipants;
         string roomName;
         string accessCode;
-        string status; // Added status field
+        string status;
     }
 
     struct Option {
@@ -119,7 +119,7 @@ contract VotingSystem {
             currentParticipants: 0,
             roomName: _roomName,
             accessCode: _accessCode,
-            status: "new" // Set default status to "new"
+            status: "new"
         });
 
         for (uint256 i = 0; i < _optionNames.length; i++) {
@@ -183,7 +183,7 @@ contract VotingSystem {
     {
         require(votes[_voteId].isActive, "Vote already ended");
         votes[_voteId].isActive = false;
-        votes[_voteId].status = "ended"; // Update status to "ended" when vote ends
+        votes[_voteId].status = "ended";
         emit VoteEnded(_voteId);
     }
 
@@ -202,7 +202,7 @@ contract VotingSystem {
             uint256 currentParticipants,
             string memory roomName,
             string memory accessCode,
-            string memory status // Added status to the return parameters
+            string memory status
         )
     {
         Vote memory vote = votes[_voteId];
@@ -217,7 +217,7 @@ contract VotingSystem {
             vote.currentParticipants,
             vote.roomName,
             vote.accessCode,
-            vote.status // Return the status of the vote
+            vote.status
         );
     }
 
@@ -248,54 +248,108 @@ contract VotingSystem {
         return voters[_voteId][_voter].hasVoted;
     }
 
-function getAllVotes() external view returns (
-    uint256[] memory voteIds,
-    string[] memory titles,
-    string[] memory descriptions,
-    uint256[] memory startTimes,
-    uint256[] memory endTimes,
-    bool[] memory isActives,
-    address[] memory creators,
-    uint256[] memory maxParticipants,
-    uint256[] memory currentParticipants,
-    string[] memory roomNames,
-    string[] memory accessCodes,
-    string[] memory statuses
-) {
-    uint256 totalVotes = voteCounter;
+    function getAllVotesPart1() external view returns (
+        uint256[] memory voteIds,
+        string[] memory titles,
+        string[] memory descriptions,
+        uint256[] memory startTimes
+    ) {
+        uint256 totalVotes = voteCounter;
+        voteIds = new uint256[](totalVotes);
+        titles = new string[](totalVotes);
+        descriptions = new string[](totalVotes);
+        startTimes = new uint256[](totalVotes);
 
-    // Initialize the arrays for each field
-    voteIds = new uint256[](totalVotes);
-    titles = new string[](totalVotes);
-    descriptions = new string[](totalVotes);
-    startTimes = new uint256[](totalVotes);
-    endTimes = new uint256[](totalVotes);
-    isActives = new bool[](totalVotes);
-    creators = new address[](totalVotes);
-    maxParticipants = new uint256[](totalVotes);
-    currentParticipants = new uint256[](totalVotes);
-    roomNames = new string[](totalVotes);
-    accessCodes = new string[](totalVotes);
-    statuses = new string[](totalVotes);
-
-    // Populate the arrays
-    for (uint256 i = 1; i <= totalVotes; i++) {
-        Vote memory vote = votes[i];
-        if (vote.id != 0) { // Ensure the vote exists
-            voteIds[i - 1] = vote.id;
-            titles[i - 1] = vote.title;
-            descriptions[i - 1] = vote.description;
-            startTimes[i - 1] = vote.startTime;
-            endTimes[i - 1] = vote.endTime;
-            isActives[i - 1] = vote.isActive;
-            creators[i - 1] = vote.creator;
-            maxParticipants[i - 1] = vote.maxParticipants;
-            currentParticipants[i - 1] = vote.currentParticipants;
-            roomNames[i - 1] = vote.roomName;
-            accessCodes[i - 1] = vote.accessCode;
-            statuses[i - 1] = vote.status;
+        for (uint256 i = 1; i <= totalVotes; i++) {
+            Vote memory vote = votes[i];
+            if (vote.id != 0) {
+                uint256 index = i - 1;
+                voteIds[index] = vote.id;
+                titles[index] = vote.title;
+                descriptions[index] = vote.description;
+                startTimes[index] = vote.startTime;
+            }
         }
     }
-}
 
+    function getAllVotesPart2() external view returns (
+        uint256[] memory endTimes,
+        bool[] memory isActives,
+        address[] memory creators,
+        uint256[] memory maxParticipants
+    ) {
+        uint256 totalVotes = voteCounter;
+        endTimes = new uint256[](totalVotes);
+        isActives = new bool[](totalVotes);
+        creators = new address[](totalVotes);
+        maxParticipants = new uint256[](totalVotes);
+
+        for (uint256 i = 1; i <= totalVotes; i++) {
+            Vote memory vote = votes[i];
+            if (vote.id != 0) {
+                uint256 index = i - 1;
+                endTimes[index] = vote.endTime;
+                isActives[index] = vote.isActive;
+                creators[index] = vote.creator;
+                maxParticipants[index] = vote.maxParticipants;
+            }
+        }
+    }
+
+    function getAllVotesPart3() external view returns (
+        uint256[] memory currentParticipants,
+        string[] memory roomNames,
+        string[] memory accessCodes,
+        string[] memory statuses
+    ) {
+        uint256 totalVotes = voteCounter;
+        currentParticipants = new uint256[](totalVotes);
+        roomNames = new string[](totalVotes);
+        accessCodes = new string[](totalVotes);
+        statuses = new string[](totalVotes);
+
+        for (uint256 i = 1; i <= totalVotes; i++) {
+            Vote memory vote = votes[i];
+            if (vote.id != 0) {
+                uint256 index = i - 1;
+                currentParticipants[index] = vote.currentParticipants;
+                roomNames[index] = vote.roomName;
+                accessCodes[index] = vote.accessCode;
+                statuses[index] = vote.status;
+            }
+        }
+    }
+
+    function getVoteOptions(uint256 voteId) external view returns (string[] memory) {
+        uint256 optionCount = optionCounts[voteId];
+        string[] memory options = new string[](optionCount);
+        
+        for (uint256 i = 0; i < optionCount; i++) {
+            options[i] = voteOptions[voteId][i].name;
+        }
+        
+        return options;
+    }
+
+    function getAllVoteOptions() external view returns (string[][] memory) {
+        uint256 totalVotes = voteCounter;
+        string[][] memory allOptions = new string[][](totalVotes);
+        
+        for (uint256 i = 1; i <= totalVotes; i++) {
+            if (votes[i].id != 0) {
+                uint256 optionCount = optionCounts[i];
+                allOptions[i-1] = new string[](optionCount);
+                
+                for (uint256 j = 0; j < optionCount; j++) {
+                    allOptions[i-1][j] = voteOptions[i][j].name;
+                }
+            }
+        }
+        
+        return allOptions;
+    }
+
+    function getTotalVotes() external view returns (uint256) {
+        return voteCounter;
+    }
 }

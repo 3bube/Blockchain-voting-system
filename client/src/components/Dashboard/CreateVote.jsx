@@ -159,15 +159,6 @@ const CreateVote = () => {
         throw new Error("Invalid number of maximum participants");
       }
 
-      // console.log("Sending transaction with parameters:", {
-      //   title,
-      //   description,
-      //   candidateNames,
-      //   startTimestamp,
-      //   endTimestamp,
-      //   maxParticipants,
-      // });
-
       // Create the vote on the blockchain
       const tx = await contract.createVote(
         title,
@@ -179,8 +170,6 @@ const CreateVote = () => {
         roomName,
         accessCode
       );
-
-      console.log("Transaction sent:", tx);
 
       // Wait for the transaction to be mined
       const receipt = await tx.wait();

@@ -47,8 +47,6 @@ const LatestVotes = () => {
     refetchOnWindowFocus: false,
   });
 
-  console.log("voteBlockchainData", voteBlockchainData);
-
   // Merge blockchain and MongoDB votes
   const votes = (voteBlockchainData ?? []).map((blockchainVote) => {
     const backupVote = backUpData?.votes?.find(
