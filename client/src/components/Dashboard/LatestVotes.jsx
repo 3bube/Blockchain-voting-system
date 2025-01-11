@@ -142,13 +142,16 @@ const LatestVotes = () => {
             ) : isVotesEmpty ? (
               <Text>No votes available.</Text>
             ) : (
-              votes?.map((vote, index) => (
-                <VoteCard
-                  key={vote.id ?? index}
-                  vote={vote}
-                  accessCode={accessCodes[index]}
-                />
-              ))
+              votes?.map((vote, index) => {
+                console.log(vote);
+                return (
+                  <VoteCard
+                    key={vote.id ?? index}
+                    vote={vote}
+                    accessCode={vote.accessCode}
+                  />
+                );
+              })
             )}
           </SimpleGrid>
         </Box>

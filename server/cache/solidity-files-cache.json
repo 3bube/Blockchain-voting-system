@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "C:\\Users\\HP\\Desktop\\Blockchain voting system\\server\\contracts\\vote.sol": {
-      "lastModificationDate": 1736512286131,
-      "contentHash": "25cd8b847176ce17cd6e9bfa1b478afa",
+      "lastModificationDate": 1736600330927,
+      "contentHash": "69af6ddf64735df7060b0dc78f4eded8",
       "sourceName": "contracts/vote.sol",
       "solcConfig": {
         "version": "0.8.24",

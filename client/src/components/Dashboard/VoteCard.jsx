@@ -61,9 +61,11 @@ const VoteCard = ({ vote, accessCode }) => {
   };
 
   const getTotalVotes = () => {
-    return vote?.candidates?.reduce(
-      (sum, candidate) => sum + candidate.voteCount,
-      0
+    return (
+      vote?.candidates?.reduce(
+        (sum, candidate) => sum + Number(candidate.voteCount.toString()),
+        0
+      ) || 0
     );
   };
 
@@ -146,25 +148,28 @@ const VoteCard = ({ vote, accessCode }) => {
           >
             Candidates:
           </Text>
-          {vote?.options?.map((candidate, index) => (
-            <Box key={index} mb={2}>
-              <HStack justify="space-between" mb={1}>
-                <Text fontSize="sm">{candidate.name}</Text>
-                <Text
-                  fontSize="sm"
-                  color={colorMode === "dark" ? "white" : "gray.600"}
-                >
-                  {candidate.voteCount} votes
-                </Text>
-              </HStack>
-              <Progress
-                value={(candidate.voteCount / (totalVotes || 1)) * 100}
-                size="sm"
-                colorScheme="coffee"
-                borderRadius="full"
-              />
-            </Box>
-          ))}
+          {vote?.options?.map((candidate, index) => {
+            const voteCount = Number(candidate.voteCount.toString());
+            return (
+              <Box key={index} mb={2}>
+                <HStack justify="space-between" mb={1}>
+                  <Text fontSize="sm">{candidate.name}</Text>
+                  <Text
+                    fontSize="sm"
+                    color={colorMode === "dark" ? "white" : "gray.600"}
+                  >
+                    {voteCount} votes
+                  </Text>
+                </HStack>
+                <Progress
+                  value={(voteCount / (totalVotes || 1)) * 100}
+                  size="sm"
+                  colorScheme="coffee"
+                  borderRadius="full"
+                />
+              </Box>
+            );
+          })}
         </Box>
 
         <HStack

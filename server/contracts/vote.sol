@@ -23,6 +23,16 @@ contract VotingSystem {
         uint256 voteCount;
     }
 
+    struct VoteOption {
+        string name;
+        uint256 voteCount;
+    }
+
+    struct Candidate {
+        string name;
+        uint256 voteCount;
+    }
+
     struct Voter {
         bool hasVoted;
         uint256 votedOptionId;
@@ -320,28 +330,36 @@ contract VotingSystem {
         }
     }
 
-    function getVoteOptions(uint256 voteId) external view returns (string[] memory) {
+    function getVoteOptions(uint256 voteId) external view returns (VoteOption[] memory) {
         uint256 optionCount = optionCounts[voteId];
-        string[] memory options = new string[](optionCount);
+        VoteOption[] memory options = new VoteOption[](optionCount);
         
         for (uint256 i = 0; i < optionCount; i++) {
-            options[i] = voteOptions[voteId][i].name;
+            Option memory option = voteOptions[voteId][i];
+            options[i] = VoteOption({
+                name: option.name,
+                voteCount: option.voteCount
+            });
         }
         
         return options;
     }
 
-    function getAllVoteOptions() external view returns (string[][] memory) {
+    function getAllVoteOptions() external view returns (VoteOption[][] memory) {
         uint256 totalVotes = voteCounter;
-        string[][] memory allOptions = new string[][](totalVotes);
+        VoteOption[][] memory allOptions = new VoteOption[][](totalVotes);
         
         for (uint256 i = 1; i <= totalVotes; i++) {
             if (votes[i].id != 0) {
                 uint256 optionCount = optionCounts[i];
-                allOptions[i-1] = new string[](optionCount);
+                allOptions[i-1] = new VoteOption[](optionCount);
                 
                 for (uint256 j = 0; j < optionCount; j++) {
-                    allOptions[i-1][j] = voteOptions[i][j].name;
+                    Option memory option = voteOptions[i][j];
+                    allOptions[i-1][j] = VoteOption({
+                        name: option.name,
+                        voteCount: option.voteCount
+                    });
                 }
             }
         }
@@ -349,7 +367,26 @@ contract VotingSystem {
         return allOptions;
     }
 
-    function getTotalVotes() external view returns (uint256) {
-        return voteCounter;
+    function getTotalVotes() external view returns (
+        uint256 totalVotes,
+        VoteOption[] memory options
+    ) {
+        totalVotes = voteCounter;
+        
+        // For the latest vote
+        uint256 latestVoteId = voteCounter - 1;
+        uint256 optionCount = optionCounts[latestVoteId];
+        
+        options = new VoteOption[](optionCount);
+        
+        for(uint256 i = 0; i < optionCount; i++) {
+            Option memory option = voteOptions[latestVoteId][i];
+            options[i] = VoteOption({
+                name: option.name,
+                voteCount: option.voteCount
+            });
+        }
+        
+        return (totalVotes, options);
     }
 }

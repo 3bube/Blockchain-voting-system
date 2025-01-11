@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Container,
@@ -12,18 +12,20 @@ import {
   Heading,
 } from "@chakra-ui/react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { getVoteByRoomId, castVote } from "../utils/vote.utils";
 import { CircleCheck } from "lucide-react";
-import { useSocket } from "../contexts/SocketContext";
 import useAuth from "../context/useAuth";
-import { ethers } from "ethers";
 
-// VoteCard component
-const VoteCard = ({ candidate, selectedCandidate, onSelect, totalVotes }) => {
-  // calculate voting percentage
+const VoteCard = ({
+  candidate,
+  candidateIndex,
+  selectedCandidateIndex,
+  onSelect,
+  totalVotes,
+}) => {
   const votingPercentage =
-    totalVotes > 0 ? (candidate.voteCount / totalVotes) * 100 : 0;
+    totalVotes > 0
+      ? (Number(candidate.voteCount.toString()) / totalVotes) * 100
+      : 0;
 
   return (
     <Grid
@@ -33,8 +35,8 @@ const VoteCard = ({ candidate, selectedCandidate, onSelect, totalVotes }) => {
       borderRadius="sm"
       border={"1px"}
       cursor={"pointer"}
-      onClick={() => onSelect(candidate)}
-      shadow={selectedCandidate?._id === candidate._id ? "lg" : "none"}
+      onClick={() => onSelect(candidateIndex)}
+      shadow={selectedCandidateIndex === candidateIndex ? "lg" : "none"}
       _hover={{
         shadow: "lg",
       }}
@@ -63,7 +65,7 @@ const VoteCard = ({ candidate, selectedCandidate, onSelect, totalVotes }) => {
             alignItems="center"
             justifyContent="center"
           >
-            {selectedCandidate?._id === candidate._id && (
+            {selectedCandidateIndex === candidateIndex && (
               <CircleCheck size={30} color="green" />
             )}
           </Box>
@@ -96,7 +98,7 @@ const VoteCard = ({ candidate, selectedCandidate, onSelect, totalVotes }) => {
           h="full"
           p={4}
         >
-          {votingPercentage}%
+          {votingPercentage.toFixed(1)}%
         </Box>
       </GridItem>
     </Grid>
@@ -104,164 +106,258 @@ const VoteCard = ({ candidate, selectedCandidate, onSelect, totalVotes }) => {
 };
 
 const Room = () => {
-  const { id } = useParams();
   const [searchParams] = useSearchParams();
   const accessCode = searchParams.get("accessCode");
-  const { socket } = useSocket();
-  const { data } = useQuery({
-    queryKey: ["vote", id],
-    queryFn: async () => await getVoteByRoomId(id),
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  const { currentUser, contract } = useAuth();
-  const toast = useToast();
+  const { contract, currentUser } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
-  const [timeLeft, setTimeLeft] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [vote, setVote] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(null);
 
-  useEffect(() => {
-    let interval;
+  // Function to get vote ID by access code
+  const getVoteIdByAccessCode = async () => {
+    try {
+      // Get all vote IDs from the blockchain
+      const [voteIds] = await contract.getAllVotesPart1();
 
-    const calculateTimeLeft = () => {
-      if (data?.vote) {
-        const endTime = new Date(data.vote.endTime);
-        const now = new Date();
-        const diff = endTime - now;
-
-        // If the vote has ended
-        if (diff < 0) {
-          clearInterval(interval);
-          setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-          return;
+      // Iterate through all votes to find the one with matching access code
+      for (let i = 0; i < voteIds.length; i++) {
+        const voteId = Number(voteIds[i]);
+        try {
+          const voteDetails = await contract.getVoteDetails(voteId);
+          const voteAccessCode = voteDetails[9]; // Access code is at index 9
+          if (voteAccessCode === accessCode) {
+            return voteId;
+          }
+        } catch (error) {
+          continue;
         }
-
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor(
-          (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-        );
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        setTimeLeft({ days, hours, minutes, seconds });
       }
-    };
-
-    if (data?.vote) {
-      // Calculate immediately
-      calculateTimeLeft();
-      // Then update every second
-      interval = setInterval(calculateTimeLeft, 1000);
+      throw new Error("No vote found with the given access code");
+    } catch (error) {
+      console.error("Error getting vote ID:", error);
+      throw error;
     }
-
-    // Cleanup interval on component unmount or when data changes
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [data]);
-
-  const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const { vote } = data ?? {};
-
-  // calculate total votes
-  const totalVotes =
-    vote?.candidates?.reduce(
-      (sum, candidate) => sum + (candidate.voteCount ?? 0),
-      0
-    ) ?? 0;
-
-  // handle candidate selection
-  const handleCandidateSelect = (candidate) => {
-    setSelectedCandidate(candidate);
   };
 
-  // handle vote submission
-  const handleVoteSubmit = async () => {
-    if (!selectedCandidate) {
+  const fetchVoteDetails = async () => {
+    try {
+      if (!contract) {
+        return;
+      }
+
+      const voteId = await getVoteIdByAccessCode();
+      // Get vote details from blockchain
+      const voteDetails = await contract.getVoteDetails(voteId);
+
+      const [
+        title,
+        description,
+        startTime,
+        endTime,
+        isActive,
+        creator,
+        maxParticipants,
+        currentParticipants,
+        roomName,
+        accessCodeFromContract,
+        status,
+      ] = voteDetails;
+
+      console.log("Fetching vote options for ID:", voteId);
+      // Get vote options
+      const options = await contract.getVoteOptions(voteId);
+      console.log("Vote options:", options);
+
+      // Calculate total votes
+      const totalVotes = options.reduce(
+        (sum, opt) => sum + Number(opt.voteCount.toString()),
+        0
+      );
+
+      // Check if user has voted (if user is connected)
+      let hasVoted = false;
+      if (currentUser) {
+        console.log("Checking if user has voted:", currentUser.walletAddress);
+        hasVoted = await contract.hasUserVoted(
+          voteId,
+          currentUser.walletAddress
+        );
+        console.log("Has user voted:", hasVoted);
+      }
+
+      const voteData = {
+        id: voteId,
+        title,
+        description,
+        startTime: Number(startTime) * 1000, // Convert to milliseconds
+        endTime: Number(endTime) * 1000,
+        isActive,
+        creator,
+        maxParticipants: maxParticipants.toString(),
+        currentParticipants: currentParticipants.toString(),
+        roomName,
+        accessCode: accessCodeFromContract,
+        status,
+        options,
+        totalVotes,
+        hasVoted,
+        currentTime: Date.now(),
+      };
+      console.log("Setting vote data:", voteData);
+      setVote(voteData);
+    } catch (error) {
+      console.error("Error fetching vote details:", error);
       toast({
         title: "Error",
-        description: "Please select a candidate",
+        description: error.message || "Failed to fetch vote details",
         status: "error",
         duration: 5000,
         isClosable: true,
       });
-      return;
-    }
 
-    if (!contract) {
+      // Redirect to dashboard if vote not found
+      if (error.message.includes("No vote found")) {
+        navigate("/dashboard");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (contract && accessCode) {
+      setLoading(true);
+      fetchVoteDetails();
+
+      // Set up interval to fetch vote details every 10 seconds
+      const interval = setInterval(() => {
+        fetchVoteDetails();
+      }, 10000);
+
+      // Cleanup interval on unmount
+      return () => clearInterval(interval);
+    }
+  }, [contract, accessCode]);
+
+  useEffect(() => {
+    if (!vote) return;
+
+    // Force a re-render every second to update time displays
+    const timer = setInterval(() => {
+      setVote((prevVote) => ({
+        ...prevVote,
+        currentTime: Date.now(),
+      }));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [vote]);
+
+  const isVoteActive = useMemo(() => {
+    if (!vote) return false;
+    const now = Date.now();
+    return now >= vote.startTime && now <= vote.endTime;
+  }, [vote?.startTime, vote?.endTime, vote?.currentTime]);
+
+  const hasVoteEnded = useMemo(() => {
+    if (!vote) return false;
+    return Date.now() > vote.endTime;
+  }, [vote?.endTime, vote?.currentTime]);
+
+  const hasVoteStarted = useMemo(() => {
+    if (!vote) return false;
+    return Date.now() >= vote.startTime;
+  }, [vote?.startTime, vote?.currentTime]);
+
+  const handleCandidateSelect = (candidateIndex) => {
+    if (vote.hasVoted) {
       toast({
-        title: "Error",
-        description: "Blockchain connection not initialized",
+        title: "Already voted",
+        description: "You have already cast your vote",
         status: "error",
         duration: 3000,
       });
       return;
     }
 
-    setLoading(true);
-    try {
-      // find the index of the candidate
-      const candidateIndex = vote.candidates.findIndex(
-        (candidate) => candidate._id === selectedCandidate._id
-      );
+    if (!currentUser) {
+      toast({
+        title: "Not logged in",
+        description: "Please log in to vote",
+        status: "error",
+        duration: 3000,
+      });
+      return;
+    }
 
-      if (candidateIndex === -1) {
+    setSelectedCandidateIndex(candidateIndex);
+  };
+
+  const handleVoteSubmit = async () => {
+    try {
+      if (
+        selectedCandidateIndex === null ||
+        !vote ||
+        !contract ||
+        !currentUser
+      ) {
         toast({
           title: "Error",
-          description: "Invalid candidate selection",
+          description: "Please log in and select a candidate",
           status: "error",
-          duration: 5000,
-          isClosable: true,
+          duration: 3000,
         });
         return;
       }
 
-      // First cast vote on the blockchain
-      const tx = await contract.castVote(vote.voteId, candidateIndex);
-      console.log("Vote transaction sent:", tx.hash);
+      console.log(
+        "Casting vote with ID:",
+        vote.id,
+        "for candidate index:",
+        selectedCandidateIndex
+      );
+      // Cast vote on blockchain using the candidate index
+      const tx = await contract.castVote(vote.id, selectedCandidateIndex);
+      await tx.wait();
 
-      // Wait for the transaction to be mined
-      const receipt = await tx.wait();
-      console.log("Vote transaction confirmed:", receipt);
-
-      // Then cast vote in your backend
-      await castVote(vote._id, candidateIndex);
-
-      // emit the vote event
-      socket?.emit("caste_vote", {
-        roomId: id,
-        candidateIndex,
-        voterId: currentUser._id,
-      });
-
-      // navigate to dashboard
-      navigate("/dashboard");
+      // Refresh vote details
+      await fetchVoteDetails();
 
       toast({
         title: "Success",
-        description: "Vote submitted successfully on blockchain and backend",
+        description: "Vote cast successfully",
         status: "success",
         duration: 5000,
         isClosable: true,
       });
     } catch (error) {
-      console.error("Error casting vote:", error);
+      console.error("Error submitting vote:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to cast vote",
+        description: error.message || "Failed to submit vote",
         status: "error",
         duration: 5000,
         isClosable: true,
       });
-    } finally {
-      setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <Box
+        minH="100vh"
+        bg="milk.500"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+      >
+        <Text>Loading...</Text>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -302,7 +398,15 @@ const Room = () => {
                   textAlign="center"
                 >
                   <Text fontSize="2xl" fontWeight="bold">
-                    {timeLeft?.days ?? "--"}
+                    {vote?.startTime
+                      ? Math.max(
+                          0,
+                          Math.ceil(
+                            (vote.endTime - vote.currentTime) /
+                              (1000 * 60 * 60 * 24)
+                          )
+                        )
+                      : "--"}
                   </Text>
                 </Box>
                 <Text fontSize="sm" color="gray.600">
@@ -323,7 +427,16 @@ const Room = () => {
                   textAlign="center"
                 >
                   <Text fontSize="2xl" fontWeight="bold">
-                    {timeLeft?.hours ?? "--"}
+                    {vote?.startTime
+                      ? Math.max(
+                          0,
+                          Math.ceil(
+                            ((vote.endTime - vote.currentTime) %
+                              (1000 * 60 * 60 * 24)) /
+                              (1000 * 60 * 60)
+                          )
+                        )
+                      : "--"}
                   </Text>
                 </Box>
                 <Text fontSize="sm" color="gray.600">
@@ -344,7 +457,16 @@ const Room = () => {
                   textAlign="center"
                 >
                   <Text fontSize="2xl" fontWeight="bold">
-                    {timeLeft?.minutes ?? "--"}
+                    {vote?.startTime
+                      ? Math.max(
+                          0,
+                          Math.ceil(
+                            ((vote.endTime - vote.currentTime) %
+                              (1000 * 60 * 60)) /
+                              (1000 * 60)
+                          )
+                        )
+                      : "--"}
                   </Text>
                 </Box>
                 <Text fontSize="sm" color="gray.600">
@@ -365,7 +487,15 @@ const Room = () => {
                   textAlign="center"
                 >
                   <Text fontSize="2xl" fontWeight="bold">
-                    {timeLeft?.seconds ?? "--"}
+                    {vote?.startTime
+                      ? Math.max(
+                          0,
+                          Math.ceil(
+                            ((vote.endTime - vote.currentTime) % (1000 * 60)) /
+                              1000
+                          )
+                        )
+                      : "--"}
                   </Text>
                 </Box>
                 <Text fontSize="sm" color="gray.600">
@@ -375,32 +505,35 @@ const Room = () => {
             </GridItem>
           </Grid>
 
-          {/* Vote Card */}
-          {vote?.candidates?.map((candidate) => (
+          {/* Vote Cards */}
+          {vote?.options?.map((candidate, index) => (
             <VoteCard
-              key={candidate.id}
+              key={index}
               candidate={candidate}
-              selectedCandidate={selectedCandidate}
-              totalVotes={totalVotes}
+              candidateIndex={index}
+              selectedCandidateIndex={selectedCandidateIndex}
+              totalVotes={vote.totalVotes}
               onSelect={handleCandidateSelect}
             />
           ))}
-        </VStack>
 
-        <HStack spacing={4} mt={8} justify="center">
-          <Button
-            isDisabled={loading}
-            _disabled={{
-              bg: "coffee.600",
-              _hover: { bg: "coffee.600" },
-              cursor: "not-allowed",
-            }}
-            onClick={handleVoteSubmit}
-          >
-            Submit Vote
-          </Button>
-          <Button onClick={() => navigate("/dashboard")}>Leave Room</Button>
-        </HStack>
+          {/* Action Buttons */}
+          <HStack spacing={4} mt={8} justify="center">
+            <Button
+              isLoading={loading}
+              isDisabled={loading ?? vote?.hasVoted}
+              _disabled={{
+                bg: "coffee.600",
+                _hover: { bg: "coffee.600" },
+                cursor: "not-allowed",
+              }}
+              onClick={handleVoteSubmit}
+            >
+              {vote?.hasVoted ? "Already Voted" : "Submit Vote"}
+            </Button>
+            <Button onClick={() => navigate("/dashboard")}>Leave Room</Button>
+          </HStack>
+        </VStack>
       </Container>
     </Box>
   );

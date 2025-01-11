@@ -72,16 +72,6 @@ const contractABI = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "_voteId", type: "uint256" }],
-    name: "getVoteResults",
-    outputs: [
-      { internalType: "string[]", name: "names", type: "string[]" },
-      { internalType: "uint256[]", name: "counts", type: "uint256[]" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [
       { internalType: "uint256", name: "_voteId", type: "uint256" },
       { internalType: "uint256", name: "_optionId", type: "uint256" },
@@ -89,92 +79,6 @@ const contractABI = [
     name: "castVote",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "voteId",
-        type: "uint256",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "voter",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "optionId",
-        type: "uint256",
-      },
-    ],
-    name: "VoteCast",
-    type: "event",
-  },
-  {
-    inputs: [],
-    name: "getAllVotesPart1",
-    outputs: [
-      { internalType: "uint256[]", name: "voteIds", type: "uint256[]" },
-      { internalType: "string[]", name: "titles", type: "string[]" },
-      { internalType: "string[]", name: "descriptions", type: "string[]" },
-      { internalType: "uint256[]", name: "startTimes", type: "uint256[]" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "getAllVotesPart2",
-    outputs: [
-      { internalType: "uint256[]", name: "endTimes", type: "uint256[]" },
-      { internalType: "bool[]", name: "isActives", type: "bool[]" },
-      { internalType: "address[]", name: "creators", type: "address[]" },
-      { internalType: "uint256[]", name: "maxParticipants", type: "uint256[]" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "getAllVotesPart3",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "currentParticipants",
-        type: "uint256[]",
-      },
-      { internalType: "string[]", name: "roomNames", type: "string[]" },
-      { internalType: "string[]", name: "accessCodes", type: "string[]" },
-      { internalType: "string[]", name: "statuses", type: "string[]" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "getAllVoteOptions",
-    outputs: [{ internalType: "string[][]", name: "", type: "string[][]" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "voteId", type: "uint256" }],
-    name: "getVoteOptions",
-    outputs: [{ internalType: "string[]", name: "", type: "string[]" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "getTotalVotes",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
     type: "function",
   },
   {
@@ -204,6 +108,104 @@ const contractABI = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "uint256", name: "_voteId", type: "uint256" }],
+    name: "getVoteResults",
+    outputs: [
+      { internalType: "string[]", name: "names", type: "string[]" },
+      { internalType: "uint256[]", name: "counts", type: "uint256[]" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllVotesPart1",
+    outputs: [
+      { internalType: "uint256[]", name: "voteIds", type: "uint256[]" },
+      { internalType: "string[]", name: "titles", type: "string[]" },
+      { internalType: "string[]", name: "descriptions", type: "string[]" },
+      { internalType: "uint256[]", name: "startTimes", type: "uint256[]" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllVotesPart2",
+    outputs: [
+      { internalType: "uint256[]", name: "endTimes", type: "uint256[]" },
+      { internalType: "bool[]", name: "isActives", type: "bool[]" },
+      { internalType: "address[]", name: "creators", type: "address[]" },
+      { internalType: "uint256[]", name: "maxParticipants", type: "uint256[]" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllVotesPart3",
+    outputs: [
+      { internalType: "uint256[]", name: "currentParticipants", type: "uint256[]" },
+      { internalType: "string[]", name: "roomNames", type: "string[]" },
+      { internalType: "string[]", name: "accessCodes", type: "string[]" },
+      { internalType: "string[]", name: "statuses", type: "string[]" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "voteId", type: "uint256" }],
+    name: "getVoteOptions",
+    outputs: [
+      {
+        components: [
+          { internalType: "string", name: "name", type: "string" },
+          { internalType: "uint256", name: "voteCount", type: "uint256" },
+        ],
+        internalType: "struct VotingSystem.VoteOption[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllVoteOptions",
+    outputs: [
+      {
+        components: [
+          { internalType: "string", name: "name", type: "string" },
+          { internalType: "uint256", name: "voteCount", type: "uint256" },
+        ],
+        internalType: "struct VotingSystem.VoteOption[][]",
+        name: "",
+        type: "tuple[][]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getTotalVotes",
+    outputs: [
+      { internalType: "uint256", name: "totalVotes", type: "uint256" },
+      {
+        components: [
+          { internalType: "string", name: "name", type: "string" },
+          { internalType: "uint256", name: "voteCount", type: "uint256" },
+        ],
+        internalType: "struct VotingSystem.VoteOption[]",
+        name: "options",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       { internalType: "uint256", name: "_voteId", type: "uint256" },
       { internalType: "address", name: "_voter", type: "address" },
@@ -212,6 +214,34 @@ const contractABI = [
     outputs: [{ internalType: "bool", name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "voteId", type: "uint256" },
+      { indexed: false, internalType: "string", name: "title", type: "string" },
+      { indexed: false, internalType: "address", name: "creator", type: "address" },
+    ],
+    name: "VoteCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "voteId", type: "uint256" },
+      { indexed: true, internalType: "address", name: "voter", type: "address" },
+      { indexed: false, internalType: "uint256", name: "optionId", type: "uint256" },
+    ],
+    name: "VoteCast",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "voteId", type: "uint256" },
+    ],
+    name: "VoteEnded",
+    type: "event",
   },
 ];
 

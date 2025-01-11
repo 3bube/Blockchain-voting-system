@@ -111,13 +111,16 @@ export const generateRoomCode = () => {
 export const getAllBlockchainVotes = async (contract) => {
   try {
     // Get all parts of the vote data
-    const [voteIds, titles, descriptions, startTimes] =
+    const [voteIds, titles, descriptions, startTimes] = 
       await contract.getAllVotesPart1();
-    const [endTimes, isActives, creators, maxParticipants] =
+    
+    const [endTimes, isActives, creators, maxParticipants] = 
       await contract.getAllVotesPart2();
-    const [currentParticipants, roomNames, accessCodes, statuses] =
+    
+    const [currentParticipants, roomNames, accessCodes, statuses] = 
       await contract.getAllVotesPart3();
-    const allOptions = await contract.getAllVoteOptions();
+
+    const allVoteOptions = await contract.getAllVoteOptions();
 
     // Format the data into an array of vote objects
     const votes = voteIds.map((id, index) => ({
@@ -133,7 +136,7 @@ export const getAllBlockchainVotes = async (contract) => {
       roomName: roomNames[index],
       accessCode: accessCodes[index],
       status: statuses[index],
-      options: allOptions[index] ?? [], // Add the options array for each vote
+      options: allVoteOptions[index] ?? [] // Each option now has {name, voteCount}
     }));
 
     return votes;
