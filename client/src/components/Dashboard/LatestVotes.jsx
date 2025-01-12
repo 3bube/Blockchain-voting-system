@@ -143,7 +143,6 @@ const LatestVotes = () => {
               <Text>No votes available.</Text>
             ) : (
               votes?.map((vote, index) => {
-                console.log(vote);
                 return (
                   <VoteCard
                     key={vote.id ?? index}

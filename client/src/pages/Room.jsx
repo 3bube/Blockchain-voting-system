@@ -166,10 +166,8 @@ const Room = () => {
         status,
       ] = voteDetails;
 
-      console.log("Fetching vote options for ID:", voteId);
       // Get vote options
       const options = await contract.getVoteOptions(voteId);
-      console.log("Vote options:", options);
 
       // Calculate total votes
       const totalVotes = options.reduce(
@@ -298,12 +296,7 @@ const Room = () => {
 
   const handleVoteSubmit = async () => {
     try {
-      if (
-        selectedCandidateIndex === null ||
-        !vote ||
-        !contract ||
-        !currentUser
-      ) {
+      if (selectedCandidateIndex === null || !vote || !contract || !currentUser) {
         toast({
           title: "Error",
           description: "Please log in and select a candidate",
@@ -313,18 +306,33 @@ const Room = () => {
         return;
       }
 
-      console.log(
-        "Casting vote with ID:",
-        vote.id,
-        "for candidate index:",
-        selectedCandidateIndex
-      );
-      // Cast vote on blockchain using the candidate index
+      // Check if vote has started
+      if (!hasVoteStarted) {
+        const startDate = new Date(vote.startTime).toLocaleString();
+        toast({
+          title: "Vote not started",
+          description: `This vote will start on ${startDate}`,
+          status: "warning",
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      // Check if vote has ended
+      if (hasVoteEnded) {
+        toast({
+          title: "Vote ended",
+          description: "This vote has already ended",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+
       const tx = await contract.castVote(vote.id, selectedCandidateIndex);
       await tx.wait();
-
-      // Refresh vote details
-      await fetchVoteDetails();
 
       toast({
         title: "Success",
@@ -333,11 +341,14 @@ const Room = () => {
         duration: 5000,
         isClosable: true,
       });
+
+      // Navigate to dashboard after successful vote
+      navigate("/dashboard");
     } catch (error) {
       console.error("Error submitting vote:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to submit vote",
+        description: error.message ?? "Failed to submit vote",
         status: "error",
         duration: 5000,
         isClosable: true,
