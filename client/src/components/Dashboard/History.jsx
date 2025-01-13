@@ -15,20 +15,7 @@ import {
 import { Calendar, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
 import { Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getVotingHistory } from "../../utils/vote.utils";
-
-const votingHistory = [
-  { id: 1, date: "2023-05-15", topic: "City Park Renovation", vote: "yes" },
-  { id: 2, date: "2023-06-02", topic: "School Budget Increase", vote: "no" },
-  { id: 3, date: "2023-06-20", topic: "New Recycling Program", vote: "yes" },
-  {
-    id: 4,
-    date: "2023-07-05",
-    topic: "Downtown Parking Expansion",
-    vote: "no",
-  },
-  { id: 5, date: "2023-07-18", topic: "Public Library Funding", vote: "yes" },
-];
+import useAuth from "../../context/useAuth";
 
 function VoteCard({ vote }) {
   const bgColor = useColorModeValue("white", "milk.500");
@@ -87,10 +74,70 @@ function VoteCard({ vote }) {
   );
 }
 
-function VotingHistoryList() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["votingHistory"],
-    queryFn: async () => getVotingHistory(),
+const VotingHistoryList = () => {
+  const { contract, currentUser } = useAuth();
+
+  const { data: votes, isLoading, isError } = useQuery({
+    queryKey: ["votingHistory", currentUser?.walletAddress],
+    queryFn: async () => {
+      if (!contract || !currentUser) return [];
+
+      try {
+        // Get all votes from blockchain
+        const [voteIds] = await contract.getAllVotesPart1();
+
+        const votingHistory = [];
+
+        // Check each vote for user's participation
+        for (const voteId of voteIds) {
+          const hasVoted = await contract.hasUserVoted(voteId, currentUser.walletAddress);
+
+          if (hasVoted) {
+            // Get vote details
+            const [
+              title,
+              description,
+              startTime,
+              endTime,
+              isActive,
+              creator,
+              maxParticipants,
+              currentParticipants,
+              roomName,
+              accessCode,
+              status,
+            ] = await contract.getVoteDetails(voteId);
+
+            // Get vote options and user's vote
+            const options = await contract.getVoteOptions(voteId);
+            const userVoteInfo = await contract.getUserVote(voteId, currentUser.walletAddress);
+
+            votingHistory.push({
+              id: voteId.toString(),
+              title,
+              description,
+              startTime: Number(startTime) * 1000,
+              endTime: Number(endTime) * 1000,
+              isActive,
+              status,
+              candidates: options.map(opt => ({
+                name: opt.name,
+                voteCount: opt.voteCount.toString()
+              })),
+              voters: [{
+                votedFor: Number(userVoteInfo.votedOptionId),
+                votedAt: Number(userVoteInfo.votedAt) * 1000
+              }]
+            });
+          }
+        }
+
+        return votingHistory;
+      } catch (error) {
+        console.error("Error fetching voting history:", error);
+        throw error;
+      }
+    },
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     refetchOnReconnect: false,
@@ -99,15 +146,16 @@ function VotingHistoryList() {
 
   if (isLoading) return <LoadingSpinner />;
   if (isError) return <Text>Error loading voting history</Text>;
+  if (!votes?.length) return <Text>No voting history found</Text>;
 
   return (
-    <VStack spacing={6} align="stretch">
-      {data?.votingHistory?.map((vote) => (
-        <VoteCard key={vote._id} vote={vote} />
+    <VStack spacing={4} align="stretch" w="100%">
+      {votes.map((vote) => (
+        <VoteCard key={vote.id} vote={vote} />
       ))}
     </VStack>
   );
-}
+};
 
 function LoadingSpinner() {
   return (
