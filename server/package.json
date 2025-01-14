@@ -25,6 +25,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.8.4",
+    "mqtt": "^5.10.3",
     "node-cron": "^3.0.3",
     "server": "file:",
     "socket.io": "^4.8.1",

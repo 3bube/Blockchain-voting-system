@@ -145,7 +145,11 @@ const contractABI = [
     inputs: [],
     name: "getAllVotesPart3",
     outputs: [
-      { internalType: "uint256[]", name: "currentParticipants", type: "uint256[]" },
+      {
+        internalType: "uint256[]",
+        name: "currentParticipants",
+        type: "uint256[]",
+      },
       { internalType: "string[]", name: "roomNames", type: "string[]" },
       { internalType: "string[]", name: "accessCodes", type: "string[]" },
       { internalType: "string[]", name: "statuses", type: "string[]" },
@@ -218,9 +222,19 @@ const contractABI = [
   {
     anonymous: false,
     inputs: [
-      { indexed: true, internalType: "uint256", name: "voteId", type: "uint256" },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "voteId",
+        type: "uint256",
+      },
       { indexed: false, internalType: "string", name: "title", type: "string" },
-      { indexed: false, internalType: "address", name: "creator", type: "address" },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "creator",
+        type: "address",
+      },
     ],
     name: "VoteCreated",
     type: "event",
@@ -228,9 +242,24 @@ const contractABI = [
   {
     anonymous: false,
     inputs: [
-      { indexed: true, internalType: "uint256", name: "voteId", type: "uint256" },
-      { indexed: true, internalType: "address", name: "voter", type: "address" },
-      { indexed: false, internalType: "uint256", name: "optionId", type: "uint256" },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "voteId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "voter",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "optionId",
+        type: "uint256",
+      },
     ],
     name: "VoteCast",
     type: "event",
@@ -238,7 +267,12 @@ const contractABI = [
   {
     anonymous: false,
     inputs: [
-      { indexed: true, internalType: "uint256", name: "voteId", type: "uint256" },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "voteId",
+        type: "uint256",
+      },
     ],
     name: "VoteEnded",
     type: "event",
@@ -306,11 +340,9 @@ export const AuthProvider = ({ children }) => {
         email,
         password,
       });
-      console.log("Login response:", response.data); // Debugging log
       const { token, ...userData } = response.data.data;
       localStorage.setItem("token", token);
       dispatch({ type: AUTH_ACTIONS.SET_USER, payload: userData });
-      console.log("User data set:", userData); // Debugging log
       return { success: true };
     } catch (error) {
       const errorMessage = error.response?.data?.message || "Login failed";

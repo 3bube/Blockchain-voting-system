@@ -108,7 +108,7 @@ const DashboardLayout = () => {
         //   label: "Ended Vote",
         // },
         { to: "/dashboard/history", icon: History, label: "History" },
-        { to: "/dashboard/test", icon: Trash, label: "Trash" },
+        // { to: "/dashboard/test", icon: Trash, label: "Trash" },
       ],
     },
     {
