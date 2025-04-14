@@ -4,9 +4,10 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import http from "http";
 import socketService from "./services/socket.service.js";
+import morgan from "morgan";
 import cron from "node-cron";
 import Vote from "./models/vote.models.js";
-
+import MqttController from "./controllers/mqtt.controller.js";
 // Load environment variables
 dotenv.config();
 
@@ -27,7 +28,7 @@ const PORT = process.env.PORT ?? 5000;
 // CORS configuration
 const corsOptions = {
   origin: [
-    "http://localhost:5173",
+    "http://localhost:3000",
     "https://blockchain-voting-system-lime.vercel.app",
   ], // React app's default development port
   credentials: true, // Allow credentials (cookies, authorization headers)
@@ -46,6 +47,7 @@ cron.schedule("* * * * *", async () => {
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(morgan("dev"));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -71,12 +73,32 @@ import voteRoute from "./routes/vote.routes.js";
 import roomRoute from "./routes/room.routes.js";
 import userRoute from "./routes/user.routes.js";
 import powerRoute from "./routes/power.routes.js";
+import mqttRoutes from "./routes/mqtt.routes.js";
+
+// Initialize MQTT controller
+MqttController.connect();
+
+MqttController.onMessage("esp32/power_cut_alert", (message) => {
+  if (message === "true") {
+    console.log("⚠️ POWER CUT DETECTED: Switching to backup storage mode");
+  } else {
+    console.log("✅ POWER RESTORED: Resuming blockchain operations");
+  }
+});
+
+// Register voltage monitoring
+MqttController.onMessage("esp32/voltage", (message) => {
+  const voltage = parseFloat(message);
+  console.log(`Current voltage: ${voltage}V`);
+});
 
 app.use("/api/vote", voteRoute);
 app.use("/api", authRoute);
-app.use("/api", roomRoute);
+app.use("/api/room", roomRoute);
 app.use("/api/user", userRoute);
 app.use("/api", powerRoute);
+app.use("/api", mqttRoutes);
+
 // Start server
 const startServer = async () => {
   try {

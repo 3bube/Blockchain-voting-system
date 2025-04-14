@@ -13,7 +13,7 @@ const generateToken = (id) => {
 // @access  Public
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, nin } = req.body;
 
     // Check if user exists
     const userExists = await User.findOne({ email });
@@ -29,6 +29,7 @@ export const register = async (req, res) => {
       name,
       email,
       password,
+      nin,
     });
 
     if (user) {
@@ -36,8 +37,9 @@ export const register = async (req, res) => {
         success: true,
         data: {
           _id: user._id,
-          username: user.username,
+          name: user.name,
           email: user.email,
+          nin: user.nin,
           role: user.role,
           token: generateToken(user._id),
         },
@@ -85,6 +87,7 @@ export const login = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        nin: user.nin,
         role: user.role,
         token: generateToken(user._id),
       },
@@ -104,21 +107,31 @@ export const login = async (req, res) => {
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found"
+      });
+    }
 
     res.status(200).json({
       success: true,
-      data: {
+      user: {
         _id: user._id,
+        id: user._id, // Adding id for consistency with frontend
         name: user.name,
         email: user.email,
+        nin: user.nin,
         role: user.role,
       },
     });
   } catch (error) {
+    console.error("Error fetching user:", error);
     res.status(500).json({
       success: false,
-      message: "Server error",
-      error: error.message,
+      error: "Failed to fetch user data",
+      details: error.message,
     });
   }
 };

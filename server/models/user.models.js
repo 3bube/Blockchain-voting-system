@@ -15,6 +15,12 @@ const userSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    nin: {
+      type: String,
+      required: [true, "NIN is required"],
+      unique: true,
+      trim: true,
+    },
     password: {
       type: String,
       required: [true, "Password is required"],

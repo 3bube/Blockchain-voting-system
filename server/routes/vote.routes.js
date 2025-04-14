@@ -1,40 +1,37 @@
 import express from "express";
+import voteController from "../controllers/vote.controller.js";
 import { protect } from "../Middleware/auth.js";
-import {
-  createVote,
-  getAllVotes,
-  getVoteByRoomId,
-  castVote,
-  updateVote,
-  endVote,
-  getVotingHistory,
-  deleteVote,
-} from "../controllers/vote.controller.js";
 
 const router = express.Router();
 
-// Create a new vote (requires authentication)
-router.post("/create", protect, createVote);
+// All routes require authentication
+router.use(protect);
+
+// Create a new vote
+router.post("/create", voteController.createVote.bind(voteController));
+
+// Cast a vote
+router.post("/cast", voteController.castVote.bind(voteController));
 
 // Get all votes
-router.get("/all", protect, getAllVotes);
+router.get("/all", voteController.getVotes.bind(voteController));
 
-// Get voting history
-router.get("/history", protect, getVotingHistory);
+// Get specific vote details
+router.get(
+  "/details/:voteId",
+  voteController.getVoteDetails.bind(voteController)
+);
 
-// Get specific vote by ID
-router.get("/:id", protect, getVoteByRoomId);
+// Get vote results
+router.get(
+  "/results/:voteId",
+  voteController.getVoteResults.bind(voteController)
+);
 
-// Cast a vote (requires authentication)
-router.post("/:id/cast", protect, castVote);
+// End a vote (only by creator)
+router.post("/end/:voteId", voteController.endVote.bind(voteController));
 
-// Update a vote (requires authentication)
-router.post("/update/:id", protect, updateVote);
-
-// End a vote (requires authentication)
-router.post("/end/:id", protect, endVote);
-
-// Delete a vote (requires authentication)
-router.delete("/delete/:id", protect, deleteVote);
+// Manual sync (admin only)
+router.post("/sync", voteController.manualSync.bind(voteController));
 
 export default router;
