@@ -27,7 +27,7 @@ export default function Home() {
         <div className="flex flex-col items-center space-y-4 text-center mt-16">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-              INEC Blockchain Voting System
+              Blockchain Voting System
             </h1>
             <p className="mx-auto max-w-[700px] text-gray-500 md:text-xl dark:text-gray-400">
               Secure, transparent, and tamper-proof electoral polling powered by
