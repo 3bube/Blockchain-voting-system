@@ -38,14 +38,21 @@ interface Candidate {
 
 export default function CreateVotePage() {
   const router = useRouter()
-  const { user, isAdmin } = useAuth()
+  const { isAdmin } = useAuth()
   const [loading, setLoading] = useState(false)
+
+  // Format current date to YYYY-MM-DDThh:mm format for datetime-local input
+  const formatDateForInput = (date = new Date()) => {
+    // Add one hour to current time for a reasonable default
+    const futureDate = new Date(date.getTime() + 60 * 60 * 1000)
+    return futureDate.toISOString().slice(0, 16)
+  }
 
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    startDate: "",
-    endDate: "",
+    startDate: formatDateForInput(),
+    endDate: formatDateForInput(new Date(Date.now() + 24 * 60 * 60 * 1000)), // Default to 24 hours later
   })
 
   const [candidates, setCandidates] = useState<Candidate[]>([
@@ -57,14 +64,15 @@ export default function CreateVotePage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
 
-    // Clear error when field is edited
+    // Clear any error for this field when user changes it
     if (formErrors[name]) {
-      setFormErrors((prev) => ({ ...prev, [name]: "" }))
+      setFormErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[name]
+        return newErrors
+      })
     }
   }
 
@@ -261,6 +269,8 @@ export default function CreateVotePage() {
                           onChange={handleInputChange}
                           required
                           className={cn("pl-10", formErrors.startDate && "border-red-500 focus-visible:ring-red-500")}
+                          // Ensure 24-hour format
+                          step="60" // 1 minute steps
                         />
                       </div>
                       {formErrors.startDate && (
@@ -285,6 +295,8 @@ export default function CreateVotePage() {
                           onChange={handleInputChange}
                           required
                           className={cn("pl-10", formErrors.endDate && "border-red-500 focus-visible:ring-red-500")}
+                          // Ensure 24-hour format
+                          step="60" // 1 minute steps
                         />
                       </div>
                       {formErrors.endDate && (

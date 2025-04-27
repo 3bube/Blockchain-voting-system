@@ -14,10 +14,11 @@ import {
   AlertCircle,
   DoorOpen,
   Calendar,
+  Clock,
   Users,
   BarChart3,
   CheckCircle,
-  Clock,
+  Key,
   Shield,
 } from "lucide-react"
 import newRequest from "@/utils/newRequest"
@@ -26,13 +27,15 @@ import { toast } from "sonner"
 interface VoteItem {
   _id: string
   title: string
-  status: "active" | "closed" | "pending"
+  status: "active" | "closed" | "pending" | "new"
   startTime: string
   endTime: string
   candidateCount: number
   voterCount: number
   voteId: string
   isPending: boolean
+  accessCode?: string
+  roomName?: string
   creator?: {
     username?: string
     email?: string
@@ -42,6 +45,7 @@ interface VoteItem {
 export default function DashboardPage() {
   const { user } = useAuth()
   const [activeVotes, setActiveVotes] = useState<VoteItem[]>([])
+  const [upcomingVotes, setUpcomingVotes] = useState<VoteItem[]>([])
   const [pastVotes, setPastVotes] = useState<VoteItem[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -52,10 +56,25 @@ export default function DashboardPage() {
       const { data } = await newRequest.get("/vote/all")
 
       if (data.success) {
-        const activeVotesList = data.votes.filter((vote: VoteItem) => vote.status === "active")
-        const pastVotesList = data.votes.filter((vote: VoteItem) => vote.status === "closed")
+        const now = new Date()
+        
+        // Filter active votes (current time is between start and end time)
+        const activeVotesList = data.votes.filter((vote: VoteItem) => 
+          vote.status === "active" && new Date(vote.startTime) <= now
+        )
+        
+        // Filter upcoming votes (start time is in the future)
+        const upcomingVotesList = data.votes.filter((vote: VoteItem) => 
+          vote.status === "new" && new Date(vote.startTime) > now
+        )
+        
+        // Filter past votes (already closed)
+        const pastVotesList = data.votes.filter((vote: VoteItem) => 
+          vote.status === "closed"
+        )
 
         setActiveVotes(activeVotesList)
+        setUpcomingVotes(upcomingVotesList)
         setPastVotes(pastVotesList)
       } else {
         toast.error("Failed to fetch votes")
@@ -70,9 +89,26 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    // Fetch votes when component mounts
     fetchVotes()
+    
+    // Set up an event listener for when the page becomes visible again
+    // This ensures vote counts are refreshed when user navigates back after voting
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchVotes()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // Clean up the event listener when component unmounts
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
+  console.log(pastVotes)
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-3.5rem)]">
@@ -301,8 +337,9 @@ export default function DashboardPage() {
         </div>
 
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="active">Active Votes ({activeVotes.length})</TabsTrigger>
+            <TabsTrigger value="upcoming">Upcoming Votes ({upcomingVotes.length})</TabsTrigger>
             <TabsTrigger value="past">Past Votes ({pastVotes.length})</TabsTrigger>
           </TabsList>
 
@@ -328,10 +365,10 @@ export default function DashboardPage() {
                 {activeVotes.map((vote) => (
                   <Card
                     key={vote._id}
-                    className="relative overflow-hidden border-2 hover:border-[#008751]/50 transition-all"
+                    className="relative overflow-hidden border-2 hover:border-gray-300 transition-all"
                   >
                     {/* Status indicator */}
-                    <div className="absolute top-0 left-0 w-2 h-full bg-[#008751]" />
+                    <div className="absolute top-0 left-0 w-2 h-full bg-gray-400" />
 
                     {vote.isPending && (
                       <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-bl-md">
@@ -359,6 +396,13 @@ export default function DashboardPage() {
                           <Vote className="h-4 w-4 mr-2 text-muted-foreground" />
                           <span>Votes cast: {vote.voterCount || 0}</span>
                         </div>
+                        
+                        {vote.accessCode && (
+                          <div className="flex items-center mt-2 bg-[#008751]/10 p-1.5 rounded-md">
+                            <Key className="h-4 w-4 mr-2 text-[#008751]" />
+                            <code className="text-xs font-mono text-[#008751] font-semibold">{vote.accessCode}</code>
+                          </div>
+                        )}
 
                         {/* Progress bar showing time remaining */}
                         <div className="space-y-1.5">
@@ -396,6 +440,80 @@ export default function DashboardPage() {
                     <CardFooter>
                       <Button asChild className="w-full bg-[#008751] hover:bg-[#008751]/90">
                         <Link href={`/vote/${vote._id}`}>Cast Vote</Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="upcoming">
+            {upcomingVotes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-12 text-center border rounded-lg bg-muted/30">
+                <div className="bg-muted rounded-full p-3 mb-4">
+                  <Calendar className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-xl font-medium">No Upcoming Votes</h3>
+                <p className="text-muted-foreground mt-2 max-w-md">
+                  There are no scheduled upcoming voting sessions. Check back later for new voting opportunities.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {upcomingVotes.map((vote) => (
+                  <Card
+                    key={vote._id}
+                    className="relative overflow-hidden border-2 hover:border-blue-400/50 transition-all"
+                  >
+                    {/* Status indicator */}
+                    <div className="absolute top-0 left-0 w-2 h-full bg-blue-400" />
+
+                    {vote.isPending && (
+                      <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-bl-md">
+                        Pending Sync
+                      </div>
+                    )}
+
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start">
+                        <CardTitle className="line-clamp-1">{vote.title}</CardTitle>
+                        <Badge className="bg-blue-500">Upcoming</Badge>
+                      </div>
+                      <CardDescription>
+                        Created by {vote.creator?.username || vote.creator?.email || "Admin"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center text-muted-foreground">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          <span>Starts: {new Date(vote.startTime).toLocaleDateString()} at {new Date(vote.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center">
+                            <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span>{vote.candidateCount} candidates</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 mr-2 text-blue-500" />
+                            <span className="text-blue-500 font-medium">Scheduled</span>
+                          </div>
+                        </div>
+                        
+                        {vote.accessCode && (
+                          <div className="flex items-center mt-2 bg-blue-100 p-1.5 rounded-md">
+                            <Key className="h-4 w-4 mr-2 text-blue-500" />
+                            <code className="text-xs font-mono text-blue-500 font-semibold">{vote.accessCode}</code>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="outline" size="sm" className="w-full hover:bg-blue-50 hover:text-blue-600">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        View Details
                       </Button>
                     </CardFooter>
                   </Card>
@@ -455,20 +573,30 @@ export default function DashboardPage() {
                           <span>Total votes: {vote.voterCount || 0}</span>
                         </div>
 
-                        {/* Completion indicator */}
+                        {/* Total votes indicator */}
                         <div className="flex items-center text-sm">
                           <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                          <span className="text-green-600">Results available</span>
+                          <span className="text-green-600">Total votes: {vote.voterCount || 0}</span>
                         </div>
+                        
+                        {/* Access code */}
+                        {vote.accessCode && (
+                          <div className="flex items-center text-sm mt-2 p-2 bg-gray-50 rounded border">
+                            <Key className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="font-mono text-xs">{vote.accessCode}</span>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                     <CardFooter>
-                      <Button variant="outline" asChild className="w-full">
-                        <Link href={`/history/${vote._id}`}>
-                          <BarChart3 className="mr-2 h-4 w-4" />
-                          View Results
-                        </Link>
-                      </Button>
+                      <div className="grid grid-cols-1 gap-2 w-full">
+                        <Button variant="outline" asChild className="w-full">
+                          <Link href={`/history/${vote._id}`}>
+                            <BarChart3 className="mr-2 h-4 w-4" />
+                            View Results
+                          </Link>
+                        </Button>
+                      </div>
                     </CardFooter>
                   </Card>
                 ))}
