@@ -48,6 +48,7 @@ contract VotingSystem {
     event VoteCreated(uint256 indexed voteId, string title, address creator);
     event VoteCast(uint256 indexed voteId, address indexed voter, uint256 optionId);
     event VoteEnded(uint256 indexed voteId);
+    event VoteStatusUpdated(uint256 indexed voteId, string newStatus);
 
     modifier onlyCreator(uint256 _voteId) {
         require(votes[_voteId].creator == msg.sender, "Only creator can perform this action");
@@ -193,8 +194,34 @@ contract VotingSystem {
     {
         require(votes[_voteId].isActive, "Vote already ended");
         votes[_voteId].isActive = false;
-        votes[_voteId].status = "ended";
+        votes[_voteId].status = "closed";
         emit VoteEnded(_voteId);
+    }
+    
+    // Function to update vote status
+    function updateVoteStatus(uint256 _voteId, string memory _newStatus) 
+        external 
+        voteExists(_voteId)
+    {
+        // Only allow the creator or the contract deployer to update status
+        require(
+            msg.sender == votes[_voteId].creator || msg.sender == address(0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199),
+            "Only creator or admin can update status"
+        );
+        
+        // Update the status
+        votes[_voteId].status = _newStatus;
+        
+        // If status is active, ensure isActive is true
+        if (keccak256(bytes(_newStatus)) == keccak256(bytes("active"))) {
+            votes[_voteId].isActive = true;
+        }
+        // If status is closed/ended, ensure isActive is false
+        else if (keccak256(bytes(_newStatus)) == keccak256(bytes("closed"))) {
+            votes[_voteId].isActive = false;
+        }
+        
+        emit VoteStatusUpdated(_voteId, _newStatus);
     }
 
     function getVoteDetails(uint256 _voteId) 
@@ -388,5 +415,10 @@ contract VotingSystem {
         }
         
         return (totalVotes, options);
+    }
+    
+    // Simple function to get the total number of votes created
+    function getVoteCount() external view returns (uint256) {
+        return voteCounter;
     }
 }

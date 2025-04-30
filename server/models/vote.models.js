@@ -46,6 +46,24 @@ const voteSchema = new mongoose.Schema(
           type: Date,
           default: Date.now,
         },
+        // Fields for blockchain sync tracking
+        pendingSync: {
+          type: Boolean,
+          default: false
+        },
+        syncStatus: {
+          type: String,
+          enum: ["pending", "completed", "failed"],
+          default: "pending"
+        },
+        syncAttempts: {
+          type: Number,
+          default: 0
+        },
+        syncError: String,
+        syncedAt: Date,
+        blockchainTx: String,
+        voterAddress: String
       },
     ],
     status: {
@@ -56,6 +74,30 @@ const voteSchema = new mongoose.Schema(
     voteId: {
       type: String,
       required: true,
+    },
+    originalVoteId: {
+      type: String,
+      default: null
+    },
+    isPending: {
+      type: Boolean,
+      default: false
+    },
+    syncedToBlockchain: {
+      type: Boolean,
+      default: false
+    },
+    syncedAt: {
+      type: Date,
+      default: null
+    },
+    accessCode: {
+      type: String,
+      trim: true,
+    },
+    roomName: {
+      type: String,
+      trim: true,
     },
   },
   { timestamps: true }

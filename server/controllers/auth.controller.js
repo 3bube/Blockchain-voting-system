@@ -15,22 +15,51 @@ export const register = async (req, res) => {
   try {
     const { name, email, password, nin } = req.body;
 
-    // Check if user exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
+    // Validate input fields
+    if (!name || !email || !password || !nin) {
       return res.status(400).json({
         success: false,
-        message: "User already exists",
+        message: "All fields are required (name, email, password, nin)",
+        missingFields: {
+          name: !name,
+          email: !email,
+          password: !password,
+          nin: !nin
+        }
       });
     }
 
-    // Create user
+    // Check if user exists by email
+    const emailExists = await User.findOne({ email });
+    if (emailExists) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered",
+      });
+    }
+
+    // Check if NIN is already used
+    const ninExists = await User.findOne({ nin });
+    if (ninExists) {
+      return res.status(400).json({
+        success: false,
+        message: "NIN already registered",
+      });
+    }
+
+    console.log("Creating user with data:", { name, email, nin, passwordLength: password?.length || 0 });
+
+    // Create user with a generated username based on email
+    // This prevents the duplicate key error for username
     const user = await User.create({
       name,
       email,
       password,
       nin,
+      username: email.split('@')[0] + '_' + Date.now().toString().slice(-4), // Generate a unique username
     });
+
+    console.log("User created:", user);
 
     if (user) {
       res.status(201).json({
@@ -44,12 +73,43 @@ export const register = async (req, res) => {
           token: generateToken(user._id),
         },
       });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: "Invalid user data",
+      });
     }
   } catch (error) {
+    console.error("Registration error:", error);
+    
+    // Handle specific MongoDB errors
+    if (error.name === 'ValidationError') {
+      // Mongoose validation error
+      const validationErrors = {};
+      for (const field in error.errors) {
+        validationErrors[field] = error.errors[field].message;
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: "Validation error",
+        errors: validationErrors
+      });
+    } else if (error.code === 11000) {
+      // Duplicate key error
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        success: false,
+        message: `${field} already exists`,
+        field: field
+      });
+    }
+    
+    // Generic server error
     res.status(500).json({
       success: false,
       message: "Server error",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -58,8 +118,11 @@ export const register = async (req, res) => {
 // @route   POST /api/auth/login
 // @access  Public
 export const login = async (req, res) => {
+  console.log("Login request received");
   try {
     const { email, password } = req.body;
+
+    console.log(email, password);
 
     // Check for user email
     const user = await User.findOne({ email });

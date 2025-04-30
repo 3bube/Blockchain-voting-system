@@ -8,6 +8,14 @@ const userSchema = new mongoose.Schema(
       required: [true, "Name is required"],
       trim: true,
     },
+    // Adding username field to match existing database index
+    // Using sparse:true to allow multiple null values
+    username: {
+      type: String,
+      sparse: true,
+      unique: true,
+      trim: true,
+    },
     email: {
       type: String,
       required: [true, "Email is required"],

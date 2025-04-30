@@ -3,11 +3,11 @@ import mqtt from "mqtt";
 class MqttController {
   constructor() {
     this.mqttOptions = {
-      host: "cdacdd88136b4999a94c6947c602812b.s1.eu.hivemq.cloud",
+      host: "2a1d26f5c5c74125b6db11f3b3cc7302.s1.eu.hivemq.cloud",
       port: 8883,
       protocol: "mqtts", // secure
-      username: "Test_connection",
-      password: "Test*Connection1",
+      username: "3bube",
+      password: "3Bube@10",
     };
 
     this.topics = {
@@ -85,7 +85,7 @@ class MqttController {
 
   // Register a callback for a specific topic
   onMessage(topic, callback) {
-    console.log("topic", topic);
+    // console.log("topic", topic);
     if (!this.messageHandlers.has(topic)) {
       this.messageHandlers.set(topic, []);
     }

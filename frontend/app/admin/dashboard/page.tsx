@@ -184,6 +184,9 @@ export default function AdminDashboardPage() {
     return () => clearInterval(intervalId)
   }, [fetchPowerStatus])
 
+
+  console.log(powerStatus)
+
   // Define the triggerManualSync function
   const triggerManualSync = useCallback(async () => {
     setLoading(true)
@@ -975,28 +978,28 @@ export default function AdminDashboardPage() {
         </TabsContent>
       </Tabs>
 
-      {/* <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4">
         <div className="flex items-center">
           <h2 className="text-2xl font-bold">Power Status Overview</h2>
           <Badge variant="outline" className="ml-3">
-            {powerStatus.length} Devices
+            {powerStatus?.length} Devices
           </Badge>
         </div>
         <Button variant="outline" asChild>
           <Link href="/power-status">View Full Details</Link>
         </Button>
-      </div> */}
+      </div>
 
       <Card className="mb-8 border-2 shadow-md overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#008751] via-white to-[#008751]"></div>
-        {/* <CardHeader>
+        <CardHeader>
           <div className="flex items-center">
             <Shield className="h-5 w-5 text-[#008751] mr-2" />
             <CardTitle>Power Status Summary</CardTitle>
           </div>
           <CardDescription>Overview of power status across all polling stations</CardDescription>
-        </CardHeader> */}
-        {/* <CardContent>
+        </CardHeader>
+        <CardContent>
           {powerStatus.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
               <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
@@ -1042,31 +1045,31 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
               </div>
-
+{/* 
               <div className="mt-6">
                 <h4 className="text-sm font-medium mb-3">Battery Status</h4>
                 <div className="space-y-3">
                   {[
                     {
                       level: "Critical (<25%)",
-                      count: powerStatus.filter((d) => (d.batteryLevel || 0) < 25).length,
+                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) < 25).length,
                       color: "bg-red-500",
                     },
                     {
                       level: "Low (25-50%)",
-                      count: powerStatus.filter((d) => (d.batteryLevel || 0) >= 25 && (d.batteryLevel || 0) < 50)
+                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) >= 25 && (d.batteryLevel || 0) < 50)
                         .length,
                       color: "bg-orange-500",
                     },
                     {
                       level: "Medium (50-75%)",
-                      count: powerStatus.filter((d) => (d.batteryLevel || 0) >= 50 && (d.batteryLevel || 0) < 75)
+                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) >= 50 && (d.batteryLevel || 0) < 75)
                         .length,
                       color: "bg-yellow-500",
                     },
                     {
                       level: "High (75-100%)",
-                      count: powerStatus.filter((d) => (d.batteryLevel || 0) >= 75).length,
+                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) >= 75).length,
                       color: "bg-green-500",
                     },
                   ].map((item) => (
@@ -1079,11 +1082,11 @@ export default function AdminDashboardPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> */}
             </div>
           )}
-        </CardContent> */}
-        {/* <CardFooter>
+        </CardContent>
+        <CardFooter>
           <div className="flex gap-2 w-full">
             <Button variant="outline" asChild className="flex-1">
               <Link href="/power-status">
@@ -1096,7 +1099,7 @@ export default function AdminDashboardPage() {
               {syncingBlockchain ? "Syncing..." : "Sync Blockchain"}
             </Button>
           </div>
-        </CardFooter> */}
+        </CardFooter>
 
         {/* Bottom flag accent */}
         <div className="absolute bottom-0 left-0 right-0 flex h-1">

@@ -8,13 +8,14 @@ import morgan from "morgan";
 import cron from "node-cron";
 import Vote from "./models/vote.models.js";
 import MqttController from "./controllers/mqtt.controller.js";
+import WebSocketController from "./controllers/websocket.controller.js";
 // Load environment variables
 dotenv.config();
 
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    // console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     console.error("MongoDB connection error:", error.message);
     process.exit(1); // Exit with failure
@@ -78,19 +79,8 @@ import mqttRoutes from "./routes/mqtt.routes.js";
 // Initialize MQTT controller
 MqttController.connect();
 
-MqttController.onMessage("esp32/power_cut_alert", (message) => {
-  if (message === "true") {
-    console.log("⚠️ POWER CUT DETECTED: Switching to backup storage mode");
-  } else {
-    console.log("✅ POWER RESTORED: Resuming blockchain operations");
-  }
-});
-
-// Register voltage monitoring
-MqttController.onMessage("esp32/voltage", (message) => {
-  const voltage = parseFloat(message);
-  console.log(`Current voltage: ${voltage}V`);
-});
+// Note: Power cut alerts and voltage monitoring are handled in VoteController
+// This ensures all blockchain operations respond properly to power changes
 
 app.use("/api/vote", voteRoute);
 app.use("/api", authRoute);
@@ -104,13 +94,20 @@ const startServer = async () => {
   try {
     await connectDB();
     const server = http.createServer(app);
+    
+    // Initialize socket service
     socketService.initialize(server);
+    
     server.listen(PORT, () => {
       console.log(
         `Server running in ${
           process.env.NODE_ENV || "development"
         } mode on port ${PORT}`
       );
+      
+      // Initialize WebSocket server for power status updates AFTER server is listening
+      WebSocketController.initialize(server);
+      console.log(`WebSocket server for power status updates is active on port ${PORT}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);

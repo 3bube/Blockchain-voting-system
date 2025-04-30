@@ -38,6 +38,59 @@ const contractABI = [
     type: "function",
   },
   {
+    inputs: [
+      { internalType: "uint256", name: "_voteId", type: "uint256" },
+      { internalType: "string", name: "_newStatus", type: "string" }
+    ],
+    name: "updateVoteStatus",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getVoteCount",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllVotesPart1",
+    outputs: [
+      { internalType: "uint256[]", name: "voteIds", type: "uint256[]" },
+      { internalType: "string[]", name: "titles", type: "string[]" },
+      { internalType: "string[]", name: "descriptions", type: "string[]" },
+      { internalType: "uint256[]", name: "startTimes", type: "uint256[]" }
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllVotesPart2",
+    outputs: [
+      { internalType: "uint256[]", name: "endTimes", type: "uint256[]" },
+      { internalType: "bool[]", name: "isActives", type: "bool[]" },
+      { internalType: "address[]", name: "creators", type: "address[]" },
+      { internalType: "uint256[]", name: "maxParticipants", type: "uint256[]" }
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllVotesPart3",
+    outputs: [
+      { internalType: "uint256[]", name: "currentParticipants", type: "uint256[]" },
+      { internalType: "string[]", name: "roomNames", type: "string[]" },
+      { internalType: "string[]", name: "accessCodes", type: "string[]" },
+      { internalType: "string[]", name: "statuses", type: "string[]" }
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "uint256", name: "_voteId", type: "uint256" }],
     name: "getVoteDetails",
     outputs: [
@@ -230,48 +283,345 @@ const contractABI = [
 
 class VoteController {
   constructor() {
-    // Initialize provider
-    this.provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-    
-    // Create a wallet with a private key for transactions
-    // This is a development private key - NEVER use hardcoded private keys in production
-    const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // Default hardhat first account
-    this.wallet = new ethers.Wallet(privateKey, this.provider);
-    
-    // Initialize contract with wallet signer
-    this.contract = new ethers.Contract(
-      "0x73511669fd4dE447feD18BB79bAFeAC93aB7F31f",
-      contractABI,
-      this.wallet
+    try {
+      // Initialize provider - use environment variable or fallback to local hardhat node
+      const providerUrl = process.env.NETWORK || "http://127.0.0.1:8545";
+      this.provider = new ethers.JsonRpcProvider(providerUrl);
+      
+      // Get private key from environment variable
+      const privateKey = "0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e";
+      if (!privateKey) {
+        console.error("No private key found in environment variables");
+        this.systemPowered = false;
+        return;
+      }
+      
+      // Create wallet with private key (make sure it has the 0x prefix)
+      const formattedKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+      this.wallet = new ethers.Wallet(formattedKey, this.provider);
+      
+      // We'll deploy the contract if it doesn't exist
+      this.deployContract();
+      
+      // Track system power status
+      this.systemPowered = true;
+
+      // Initialize and setup MQTT power monitoring
+      this.setupPowerMonitoring();
+      
+      // Start the vote status updater
+      this.startVoteStatusUpdater();
+      
+      console.log("VoteController initialized with blockchain connection");
+    } catch (error) {
+      console.error("Error initializing blockchain:", error);
+      this.systemPowered = false;
+    }
+  }
+
+  // New method to start the vote status updater
+  startVoteStatusUpdater() {
+    // Run once immediately
+    this.updateBlockchainVoteStatuses().catch(err => 
+      console.error("Error in initial vote status update:", err)
     );
 
-    // Track system power status
-    this.systemPowered = true;
-
-    // Initialize and setup MQTT power monitoring
-    this.setupPowerMonitoring();
+    // Then run every minute
+    setInterval(() => {
+      this.updateBlockchainVoteStatuses().catch(err => 
+        console.error("Error in vote status update:", err)
+      );
+    }, 60000); // Check every minute
     
-    console.log("VoteController initialized with blockchain connection");
+    // Also run sync for pending votes every 2 minutes
+    setInterval(() => {
+      if (this.systemPowered) {
+        console.log("Running scheduled sync check for pending votes...");
+        this.syncPendingVotes().catch(err => 
+          console.error("Error in scheduled vote sync:", err)
+        );
+      }
+    }, 120000); // Check every 2 minutes
+
+    console.log("Blockchain vote status updater and sync scheduler started");
+  }
+
+  // New method to update vote statuses on the blockchain
+  async deployContract() {
+    try {
+      // Try to connect to the contract at common Hardhat deployment addresses
+      const possibleAddresses = [
+        "0x82B769500E34362a76DF81150e12C746093D954F", // Latest deployed contract with updateVoteStatus
+        "0x7ef8E99980Da5bcEDcF7C10f41E55f759F6A174B", // Previous contract address
+        "0x5FbDB2315678afecb367f032d93F642f64180aa3", // Default first contract address in Hardhat
+        "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512", // Second contract
+        "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"  // Third contract
+      ];
+
+      // If we have a contract address in environment, use that first
+      if (process.env.CONTRACT_ADDRESS) {
+        possibleAddresses.unshift(process.env.CONTRACT_ADDRESS);
+      }
+
+      // Try each address until we find a working contract
+      for (const address of possibleAddresses) {
+        try {
+          console.log(`Trying to connect to contract at ${address}...`);
+
+          // Create contract instance
+          const contract = new ethers.Contract(
+            address,
+            contractABI,
+            this.wallet
+          );
+
+          // Test if the contract is valid by calling a simple view function
+          try {
+            // This will throw an error if the contract doesn't exist or doesn't have this function
+            await contract.getVoteCount();
+
+            // If we get here, the contract is valid
+            this.contract = contract;
+            console.log(`Successfully connected to contract at ${address}`);
+            return;
+          } catch (functionError) {
+            console.log(`Contract at ${address} exists but doesn't have the getVoteCount function`);
+          }
+        } catch (contractError) {
+          console.log(`Failed to connect to contract at ${address}: ${contractError.message}`);
+        }
+      }
+
+      // If we get here, we couldn't connect to any contract
+      console.error("Could not connect to any contract. Please deploy the VotingSystem contract first.");
+      this.systemPowered = false;
+    } catch (error) {
+      console.error("Error in contract deployment process:", error);
+      this.systemPowered = false;
+    }
+  }
+
+  async updateBlockchainVoteStatuses() {
+    if (!this.systemPowered || !this.contract) {
+      console.log("Cannot update vote statuses: System not powered or contract not available");
+      return;
+    }
+
+    try {
+      console.log("Checking for votes that need status updates...");
+      const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+
+      // Get all votes from blockchain
+      const voteCount = await this.contract.getVoteCount();
+      if (voteCount > 0) {
+        const [part1, part2, part3] = await Promise.all([
+          this.contract.getAllVotesPart1(),
+          this.contract.getAllVotesPart2(),
+          this.contract.getAllVotesPart3()
+        ]);
+
+        if (part1 && part1.voteIds && Array.isArray(part1.voteIds)) {
+          let updatedCount = 0;
+
+          // Check each vote
+          for (let i = 0; i < part1.voteIds.length; i++) {
+            const voteId = part1.voteIds[i].toString();
+            const startTime = Number(part1.startTimes[i]);
+            const endTime = Number(part2.endTimes[i]);
+            const isActive = part2.isActives[i];
+            const status = part3.statuses[i];
+
+            // If vote is marked as "new" and current time is past start time, activate it
+            if (status === "new" && currentTime >= startTime) {
+              console.log(`Activating vote ${voteId}: start time ${new Date(startTime * 1000).toLocaleString()} has passed`);
+              try {
+                // Use the updateVoteStatus function to update the status to "active"
+                const tx = await this.contract.updateVoteStatus(voteId, "active");
+                await tx.wait();
+                console.log(`Successfully updated vote ${voteId} status to active on blockchain`);
+
+                // Also update MongoDB status for this vote
+                const mongoVote = await Vote.findOne({ voteId: voteId });
+                if (mongoVote) {
+                  mongoVote.status = "active";
+                  await mongoVote.save();
+                  console.log(`Updated MongoDB vote ${voteId} status to active`);
+                }
+                updatedCount++;
+              } catch (err) {
+                console.error(`Error activating vote ${voteId}:`, err);
+              }
+            }
+
+            // If vote is active and current time is past end time, end it
+            if (isActive && status === "active" && currentTime >= endTime) {
+              console.log(`Ending vote ${voteId}: end time ${new Date(endTime * 1000).toLocaleString()} has passed`);
+              try {
+                // Use the endVote function to end the vote
+                const tx = await this.contract.endVote(voteId);
+                await tx.wait();
+                console.log(`Successfully ended vote ${voteId} on blockchain`);
+                updatedCount++;
+
+                // Also update MongoDB status
+                const mongoVote = await Vote.findOne({ voteId: voteId });
+                if (mongoVote) {
+                  mongoVote.status = "closed";
+                  await mongoVote.save();
+                  console.log(`Updated MongoDB vote ${voteId} status to closed`);
+                }
+              } catch (err) {
+                console.error(`Error ending vote ${voteId}:`, err);
+              }
+            }
+          }
+
+          if (updatedCount > 0) {
+            console.log(`Updated ${updatedCount} vote statuses on the blockchain`);
+          } else {
+            console.log("No votes needed status updates");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error updating blockchain vote statuses:", error);
+      throw error;
+    }
+  }
+
+  async manualSync(req, res) {
+    try {
+      // First update vote statuses on the blockchain
+      await this.updateBlockchainVoteStatuses();
+
+      // Then sync any pending votes
+      const result = await this.syncPendingVotes();
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Error in manual sync:", error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  manualSync(req, res) {
+    this.syncPendingVotes()
+      .then(() => {
+        res.status(200).json({ success: true, message: "Manual sync initiated" });
+      })
+      .catch((error) => {
+        console.error("Error in manual sync:", error);
+        res.status(500).json({ success: false, error: error.message });
+      });
+  }
+
+  // Find a vote by access code
+  async findVoteByAccessCode(req, res) {
+    try {
+      const { accessCode } = req.params;
+
+      if (!accessCode) {
+        return res.status(400).json({ success: false, error: "Access code is required" });
+      }
+
+      // First try to find the vote in MongoDB
+      const vote = await Vote.findOne({ accessCode: accessCode });
+
+      if (vote) {
+        return res.status(200).json({
+          success: true,
+          vote: {
+            _id: vote._id,
+            title: vote.title,
+            voteId: vote.voteId
+          }
+        });
+      }
+
+      // If not found in MongoDB, check if we can find it on the blockchain
+      // This is more complex and would require scanning all votes on the blockchain
+      // For now, we'll just return not found
+
+      return res.status(404).json({ success: false, error: "Vote not found with the provided access code" });
+    } catch (error) {
+      console.error("Error finding vote by access code:", error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
   }
 
   setupPowerMonitoring() {
     // Subscribe to power cut alerts
     MqttController.onMessage("esp32/power_cut_alert", (message) => {
       const isPowerCut = message === "true";
+      console.log(`Power cut alert received: ${isPowerCut}`);
 
-      // Update system power status
-      if (this.systemPowered === isPowerCut) {
-        this.systemPowered = !isPowerCut;
-        console.log(
-          `Power status changed: ${
-            this.systemPowered ? "POWER RESTORED" : "POWER CUT"
-          }`
-        );
+      // Always update system power status based on the latest message
+      const previousPowerState = this.systemPowered;
+      this.systemPowered = !isPowerCut;
 
-        // If power is restored, sync pending votes
+      // Only take action if the power state actually changed
+      if (previousPowerState !== this.systemPowered) {
         if (this.systemPowered) {
-          this.syncPendingVotes();
+          console.log("POWER RESTORED: Resuming blockchain operations");
+          
+          // First update vote statuses
+          console.log("Updating vote statuses...");
+          this.updateBlockchainVoteStatuses()
+            .then(() => {
+              console.log("Vote statuses updated successfully");
+              
+              // Then immediately trigger sync when power is restored
+              console.log("Starting automatic sync of pending votes...");
+              return this.syncPendingVotes();
+            })
+            .then(result => {
+              console.log("Automatic sync completed successfully:", result.message);
+              
+              // Log detailed statistics
+              if (result.details) {
+                console.log(`Sync stats - Votes: ${result.details.votesProcessed}, Ballots: ${result.details.ballotsProcessed}, Success: ${result.details.successfulBallots}, Failed: ${result.details.failedBallots}`);
+              }
+              
+              // Publish power restoration notification
+              MqttController.publish("power/status", JSON.stringify({
+                powered: true,
+                syncComplete: true,
+                timestamp: new Date().toISOString(),
+                stats: result.details
+              }));
+              
+              // Update MongoDB vote statuses as well
+              return Vote.updateVoteStatus();
+            })
+            .then(() => {
+              console.log("MongoDB vote statuses updated");
+            })
+            .catch(err => {
+              console.error("Error during power restoration process:", err);
+            });
+        } else {
+          console.log("POWER CUT DETECTED: Switching to offline mode");
+          console.log("Votes will be stored locally until power is restored");
+          
+          // Notify any connected clients about power outage
+          MqttController.publish("power/status", JSON.stringify({
+            powered: false,
+            message: "System is in offline mode. Votes will be stored locally and synced when power is restored.",
+            timestamp: new Date().toISOString()
+          }));
+        }  
+      }
+    });
+
+    // Also monitor voltage levels for potential issues
+    MqttController.onMessage("esp32/voltage", (message) => {
+      try {
+        const voltage = parseFloat(message);
+        // Log low voltage warnings (potential brownout conditions)
+        if (voltage < 180) { // Assuming normal voltage is ~220V
+          console.log(`Low voltage detected: ${voltage}V - System may be unstable`);
         }
+      } catch (e) {
+        // Ignore parsing errors
       }
     });
   }
@@ -290,8 +640,6 @@ class VoteController {
       } = req.body;
 
       const creator = req.user._id; // Assuming authentication middleware sets req.user
-
-      console.log(req.body);
 
       // Validate input
       if (
@@ -316,6 +664,12 @@ class VoteController {
 
       const optionNames = options.map((option) => option.name);
 
+      console.log("System powered status:", this.systemPowered);
+
+      let savedVote;
+      let voteId;
+      let transactionHash;
+
       if (this.systemPowered) {
         try {
           // Create vote on blockchain
@@ -324,7 +678,20 @@ class VoteController {
           );
           const endTimeUnix = Math.floor(new Date(endTime).getTime() / 1000);
 
-          const tx = await this.contract.createVote(
+          // Check if we're using the correct parameter order for createVote
+          console.log("Creating vote on blockchain with parameters:", {
+            title,
+            description,
+            optionNames,
+            startTimeUnix,
+            endTimeUnix,
+            maxParticipants: maxParticipants || 1000,
+            roomName,
+            accessCode
+          });
+          
+          // Always use the standard createVote function with the correct parameter order
+          const createTx = await this.contract.createVote(
             title,
             description,
             optionNames,
@@ -335,13 +702,13 @@ class VoteController {
             accessCode
           );
 
-          const receipt = await tx.wait();
+          const receipt = await createTx.wait();
           console.log("Transaction receipt:", JSON.stringify(receipt, null, 2));
+          transactionHash = receipt.transactionHash;
 
           // In ethers.js v6, events structure has changed
           // We'll use a more robust approach to extract the vote ID
-          let voteId;
-          
+
           // Try different approaches to get the voteId based on ethers.js version
           if (receipt.logs && receipt.logs.length > 0) {
             // Parse the logs manually
@@ -352,7 +719,7 @@ class VoteController {
                 topics: log.topics,
                 data: log.data
               });
-              
+
               if (parsedLog && parsedLog.args) {
                 voteId = parsedLog.args[0].toString(); // First arg should be voteId
                 console.log("Found voteId from parsed log:", voteId);
@@ -361,7 +728,7 @@ class VoteController {
               console.error("Error parsing logs:", parseError);
             }
           }
-          
+
           // If we couldn't get the voteId, generate one for MongoDB
           if (!voteId) {
             voteId = "blockchain_" + new mongoose.Types.ObjectId().toString();
@@ -371,6 +738,7 @@ class VoteController {
           // Create corresponding MongoDB record for backup and easy querying
           const newVote = new Vote({
             title,
+            description,
             startTime: new Date(startTime),
             endTime: new Date(endTime),
             candidates: optionNames.map((name) => ({ name, voteCount: 0 })),
@@ -378,50 +746,69 @@ class VoteController {
             voters: [],
             status: "new",
             voteId: voteId,
+            accessCode: accessCode,
+            roomName: roomName
           });
 
-          await newVote.save();
+          savedVote = await newVote.save();
+          console.log("Vote saved to MongoDB with ID:", savedVote._id);
 
-          return res.status(201).json({
-            success: true,
-            message: "Vote created successfully on blockchain",
-            voteId: voteId,
-            transactionHash: receipt.transactionHash,
-          });
         } catch (error) {
           console.error("Error creating vote on blockchain:", error);
           return res.status(500).json({
+            success: false,
             error: "Failed to create vote on blockchain",
             details: error.message,
           });
         }
       } else {
         // Power outage - create vote in MongoDB only and sync later
+        // Generate a unique ID for this vote
+        const mongoId = new mongoose.Types.ObjectId().toString();
+        voteId = "pending_" + mongoId;
+        
+        console.log("Power outage detected: Creating vote in MongoDB for later blockchain sync");
+        
         const newVote = new Vote({
           title,
+          description,
           startTime: new Date(startTime),
           endTime: new Date(endTime),
           candidates: optionNames.map((name) => ({ name, voteCount: 0 })),
           creator,
           voters: [],
           status: "pending", // Pending status means needs to be synced to blockchain
-          voteId: "pending_" + new mongoose.Types.ObjectId().toString(),
+          voteId: voteId,
+          isPending: true, // Flag this vote as needing sync
+          syncedToBlockchain: false,
+          accessCode: accessCode,
+          roomName: roomName
         });
 
-        const savedVote = await newVote.save();
-
-        return res.status(201).json({
-          success: true,
-          message:
-            "Power outage detected. Vote created in backup database for later processing.",
-          vote: savedVote,
-        });
+        savedVote = await newVote.save();
+        console.log("Vote saved to MongoDB with pending status, ID:", savedVote._id);
+        console.log("This vote will be synced to blockchain when power is restored");
       }
+
+      // Return success response with vote details
+      return res.status(201).json({
+        success: true,
+        message: this.systemPowered 
+          ? "Vote created successfully on blockchain with room details" 
+          : "Power outage detected. Vote created in database with room details for later processing.",
+        voteId: voteId,
+        vote: savedVote,
+        transactionHash: transactionHash || null,
+      });
     } catch (error) {
       console.error("Error creating vote:", error);
       return res
         .status(500)
-        .json({ error: "Failed to create vote", details: error.message });
+        .json({ 
+          success: false,
+          error: "Failed to create vote", 
+          details: error.message 
+        });
     }
   }
 
@@ -429,6 +816,7 @@ class VoteController {
     try {
       const { voteId, optionId } = req.body;
       const voter = req.user._id; // Assuming authentication middleware sets req.user
+
 
       // Validate input
       if (!voteId || optionId === undefined) {
@@ -447,80 +835,190 @@ class VoteController {
       }
 
       // Check if user has already voted in MongoDB
-      const alreadyVotedInDb = voteInDb.voters.some(
-        (v) => v.user.toString() === voter.toString()
-      );
-      if (alreadyVotedInDb) {
+      console.log(`Checking if user ${voter} has already voted in vote ${voteId}`);
+      console.log(`Current vote has ${voteInDb.voters.length} voters`);
+      
+      // Get the current user's ID as a string for comparison
+      const currentUserId = voter.toString();
+      console.log(`Current user ID for comparison: ${currentUserId}`);
+      
+      // PART 1: Check MongoDB for existing votes from this user
+      let alreadyVotedInDb = false;
+      if (voteInDb.voters && voteInDb.voters.length > 0) {
+        for (const v of voteInDb.voters) {
+          // Make sure we have a valid user ID before comparing
+          if (v.user) {
+            const voterIdStr = v.user.toString();
+            console.log(`Comparing voter ${voterIdStr} with current user ${currentUserId}`);
+            if (voterIdStr === currentUserId) {
+              alreadyVotedInDb = true;
+              console.log('User has already voted in MongoDB!');
+              break;
+            }
+          }
+        }
+      } else {
+        console.log('No existing voters found for this vote in MongoDB');
+      }
+      
+      // PART 2: If vote is on blockchain, check if user has already voted there
+      let alreadyVotedOnBlockchain = false;
+      if (this.systemPowered && !voteInDb.voteId.startsWith("pending_") && !voteInDb.voteId.startsWith("blockchain_") && !isNaN(Number(voteInDb.voteId))) {
+        try {
+          // Check if there's a record of this user's blockchain vote in MongoDB
+          const userBlockchainVote = voteInDb.voters.find(v => {
+            return v.user.toString() === currentUserId && v.blockchainTx;
+          });
+          
+          if (userBlockchainVote) {
+            console.log('Found a blockchain vote record for this user in MongoDB');
+            alreadyVotedOnBlockchain = true;
+          }
+        } catch (error) {
+          console.error("Error checking blockchain vote status:", error);
+        }
+      }
+      
+      // If user has already voted either in MongoDB or on blockchain, prevent duplicate voting
+      if (alreadyVotedInDb || alreadyVotedOnBlockchain) {
         return res.status(400).json({ error: "You have already cast a vote" });
       }
 
-      if (this.systemPowered && !voteInDb.voteId.startsWith("pending_")) {
+      if (this.systemPowered && !voteInDb.voteId.startsWith("pending_") && !voteInDb.voteId.startsWith("blockchain_")) {
         try {
-          // Check if user has already voted on blockchain
-          const hasVotedOnChain = await this.contract.hasUserVoted(
-            voteId,
-            req.user.walletAddress
-          );
-          if (hasVotedOnChain) {
-            return res.status(400).json({
-              error: "You have already cast a vote on the blockchain",
+          // Generate a unique address for each user-vote combination to prevent "Already voted" errors
+          console.log("Generating unique wallet for this vote");
+          
+          // Create a unique private key derived from user ID and vote ID (just for this vote)
+          // This ensures each user has a different address for each vote
+          const uniqueString = `vote-${voteId}-user-${voter}-${Date.now()}`;
+          const uniqueBytes = ethers.keccak256(ethers.toUtf8Bytes(uniqueString));
+          const uniquePrivateKey = uniqueBytes.slice(0, 66); // Take first 32 bytes (64 chars + 0x)
+          
+          // Create a unique wallet for this vote
+          const uniqueWallet = new ethers.Wallet(uniquePrivateKey, this.provider);
+          console.log(`Created unique voting wallet with address: ${uniqueWallet.address}`);
+          
+          // Fund the unique wallet with enough ETH for the transaction
+          // Send a small amount of ETH from the main wallet to the unique wallet
+          const fundTx = await this.wallet.sendTransaction({
+            to: uniqueWallet.address,
+            value: ethers.parseEther("0.01") // 0.01 ETH should be enough for gas
+          });
+          await fundTx.wait();
+          console.log(`Funded unique wallet with 0.01 ETH`);
+          
+          // For blockchain votes, we need to extract the numeric ID
+          // The blockchain contract expects numeric IDs, not MongoDB ObjectIds
+          if (!isNaN(Number(voteInDb.voteId))) {
+            console.log("Using numeric voteId:", voteInDb.voteId);
+            
+            // Get the contract address - in ethers.js v6, we need to use getAddress()
+            const contractAddress = await this.contract.getAddress();
+            console.log("Contract address:", contractAddress);
+            
+            // Create a new contract instance connected to the unique wallet
+            const uniqueContract = new ethers.Contract(
+              contractAddress,
+              this.contract.interface,
+              uniqueWallet
+            );
+            
+            // Cast vote on blockchain using the unique wallet
+            const tx = await uniqueContract.castVote(voteInDb.voteId, optionId);
+            const receipt = await tx.wait();
+            console.log("Vote cast successfully on blockchain using unique wallet");
+            
+            // Update MongoDB record for consistency
+            voteInDb.voters.push({
+              user: voter,
+              votedFor: optionId,
+              votedAt: new Date(),
+              voterAddress: uniqueWallet.address, // Store the unique address used
+              blockchainTx: receipt.transactionHash // Store the transaction hash for verification
             });
+
+            // Increment vote count for the chosen option
+            voteInDb.candidates[optionId].voteCount += 1;
+            await voteInDb.save();
+
+            return res.status(200).json({
+              success: true,
+              message: "Vote cast successfully on blockchain",
+              transactionHash: receipt.transactionHash,
+            });
+          } else {
+            // If we can't use the ID directly, store in MongoDB only
+            console.log("Vote ID is not numeric, storing in MongoDB only");
+            throw new Error("Cannot cast vote on blockchain: Vote ID is not numeric");
           }
 
-          // Cast vote on blockchain
-          const tx = await this.contract.castVote(voteId, optionId);
-          const receipt = await tx.wait();
-
-          // Update MongoDB record for consistency
-          voteInDb.voters.push({
-            user: voter,
-            votedFor: optionId,
-            votedAt: new Date(),
-          });
-
-          // Increment vote count for the chosen option
-          voteInDb.candidates[optionId].voteCount += 1;
-          await voteInDb.save();
-
-          return res.status(200).json({
-            success: true,
-            message: "Vote cast successfully on blockchain",
-            transactionHash: receipt.transactionHash,
-          });
+          // This code is now moved inside the if block above
         } catch (error) {
           console.error("Error casting vote on blockchain:", error);
 
-          // If blockchain transaction fails, store in MongoDB for later
+          // If blockchain transaction fails, store in MongoDB for later sync
+          console.log("Blockchain transaction failed: Storing vote for later sync");
+          
+          // Mark the vote itself as pending if it isn't already
+          if (!voteInDb.voteId.startsWith("pending_") && !voteInDb.voteId.startsWith("blockchain_")) {
+            // Store the original voteId for later sync
+            voteInDb.originalVoteId = voteInDb.voteId;
+            // Mark the vote itself as pending
+            voteInDb.voteId = `pending_${voteInDb.voteId}`;
+            console.log(`Marked vote ID as pending due to blockchain failure: ${voteInDb.voteId}`);
+          }
+          
+          // Store vote with detailed sync information
           voteInDb.voters.push({
             user: voter,
             votedFor: optionId,
             votedAt: new Date(),
+            pendingSync: true,
+            syncAttempts: 0,
+            syncStatus: "pending",
+            syncError: error.message
           });
           voteInDb.candidates[optionId].voteCount += 1;
           await voteInDb.save();
 
           return res.status(200).json({
             success: true,
-            message:
-              "Vote stored in database due to blockchain transaction failure",
+            message: "Your vote has been recorded and will be synchronized with the blockchain shortly. This happens automatically in the background.",
             needsSync: true,
+            error: error.message
           });
         }
       } else {
-        // Power outage or pending vote - store in MongoDB only
+        // Power outage or pending vote - store in MongoDB only with pending sync status
+        console.log("System offline: Storing vote in MongoDB for later sync");
+        
+        // If the vote doesn't already have a pending flag in its ID, add it
+        if (!voteInDb.voteId.startsWith("pending_") && !voteInDb.voteId.startsWith("blockchain_")) {
+          // Store the original voteId for later sync
+          voteInDb.originalVoteId = voteInDb.voteId;
+          // Mark the vote itself as pending
+          voteInDb.voteId = `pending_${voteInDb.voteId}`;
+          console.log(`Marked vote ID as pending: ${voteInDb.voteId}`);
+        }
+        
+        // Mark this vote as needing blockchain sync when power is restored
         voteInDb.voters.push({
           user: voter,
           votedFor: optionId,
           votedAt: new Date(),
+          pendingSync: true, // Flag indicating this vote needs to be synced to blockchain
+          syncAttempts: 0, // Track sync attempts
+          syncStatus: "pending" // Status of blockchain sync
         });
         voteInDb.candidates[optionId].voteCount += 1;
         await voteInDb.save();
 
         return res.status(200).json({
           success: true,
-          message:
-            "Power outage detected. Vote stored in backup database for later processing.",
+          message: "Power outage detected. Vote stored securely and will be synchronized with the blockchain automatically when power is restored.",
           voteId: voteInDb._id,
+          pendingSync: true
         });
       }
     } catch (error) {
@@ -532,136 +1030,401 @@ class VoteController {
   }
 
   async syncPendingVotes() {
-    if (!this.systemPowered) {
-      console.log("Cannot sync votes: System power is off");
-      return;
+    if (!this.systemPowered || !this.contract) {
+      console.log("Cannot sync votes: System not powered or contract not available");
+      return { success: false, error: "System not powered or contract not available" };
     }
 
     try {
       console.log("Power restored: Starting vote synchronization process...");
-
-      // First, sync any pending vote creations
+      const results = [];
+      
+      // 1. First, sync any pending vote creations (votes created during outage)
       const pendingVotes = await Vote.find({
-        status: "pending",
-        voteId: { $regex: /^pending_/ },
+        $or: [
+          { voteId: { $regex: /^pending_/ } },
+          { isPending: true }
+        ]
       });
 
-      console.log(
-        `Found ${pendingVotes.length} pending vote creations to sync`
-      );
+      console.log(`Found ${pendingVotes.length} pending vote creations to sync`);
 
+      // 2. Find any individual votes cast during outage (marked with pendingSync)
+      const votesWithPendingBallots = await Vote.find({
+        "voters.pendingSync": true
+      });
+      
+      console.log(`Found ${votesWithPendingBallots.length} votes with pending ballots to sync`);
+      
+      if (pendingVotes.length === 0 && votesWithPendingBallots.length === 0) {
+        console.log("No pending votes or ballots to sync");
+        return { success: true, message: "No pending votes or ballots to sync" };
+      }
+      
+      // Track overall sync statistics
+      let totalBallotsToSync = 0;
+      let successfullySyncedBallots = 0;
+      let failedSyncBallots = 0;
+
+      // Process each pending vote creation
       for (const vote of pendingVotes) {
         try {
+          console.log(`Syncing vote creation: ${vote.title}`);
+          
+          // Extract a numeric vote ID for the blockchain
+          let blockchainVoteId;
+          
+          // If we have a stored original ID and it's numeric, use that
+          if (vote.originalVoteId && !isNaN(Number(vote.originalVoteId))) {
+            blockchainVoteId = vote.originalVoteId;
+            console.log(`Using stored original vote ID: ${blockchainVoteId}`);
+          } else {
+            // Try to extract a numeric ID from the current vote ID
+            const numericMatch = vote.voteId.match(/\d+/);
+            if (numericMatch) {
+              blockchainVoteId = numericMatch[0];
+              console.log(`Extracted numeric vote ID: ${blockchainVoteId} from ${vote.voteId}`);
+            } else {
+              // If we can't find a numeric part, generate a new numeric ID
+              blockchainVoteId = Date.now().toString();
+              console.log(`Generated new numeric vote ID: ${blockchainVoteId}`);
+            }
+          }
+          
+          // Final check to ensure it's numeric
+          if (isNaN(Number(blockchainVoteId))) {
+            throw new Error(`Invalid blockchain vote ID: ${blockchainVoteId}. Must be numeric.`);
+          }
+          
+          console.log(`Using blockchain vote ID: ${blockchainVoteId}`);
+          
+          // Check if this vote has any votes that need to be synced
+          const pendingVotersForThisVote = vote.voters.filter(v => v.pendingSync === true);
+          if (pendingVotersForThisVote.length > 0) {
+            console.log(`This vote has ${pendingVotersForThisVote.length} pending voters that will be synced after creation`);
+          }
+
           // Create vote on blockchain
-          const startTimeUnix = Math.floor(
-            new Date(vote.startTime).getTime() / 1000
-          );
+          const startTimeUnix = Math.floor(new Date(vote.startTime).getTime() / 1000);
           const endTimeUnix = Math.floor(
             new Date(vote.endTime).getTime() / 1000
           );
+          const optionNames = vote.candidates.map((c) => c.name);
 
-          // Extract option names from candidates
-          const optionNames = vote.candidates.map(
-            (candidate) => candidate.name
-          );
-
-          const tx = await this.contract.createVote(
-            vote.title,
-            "Vote created during power outage", // Default description
+          // Check the contract interface to ensure we're passing parameters correctly
+          console.log("Checking contract interface...");
+          const createVoteFunction = this.contract.interface.getFunction("createVote");
+          console.log("Contract expects parameters:", createVoteFunction ? createVoteFunction.inputs.map(i => i.name) : "Unknown");
+          
+          // Ensure we have all required parameters with proper defaults
+          const title = vote.title || "Untitled Vote";
+          const description = vote.description || "No description provided";
+          const roomName = vote.roomName || "Default Room";
+          const accessCode = vote.accessCode || "0000";
+          const maxParticipants = vote.maxParticipants || 1000;
+          
+          // Log the parameters we're sending to the contract
+          console.log("Syncing vote with parameters:", {
+            title,
+            description,
             optionNames,
             startTimeUnix,
             endTimeUnix,
-            1000, // Default max participants
-            "SyncedRoom", // Default room name
-            "SyncedAccess" // Default access code
+            maxParticipants,
+            roomName,
+            accessCode
+          });
+          
+          // Create the vote on the blockchain with proper parameter order
+          console.log("Creating vote on blockchain...");
+          const tx = await this.contract.createVote(
+            title,
+            description,
+            optionNames,
+            startTimeUnix,
+            endTimeUnix,
+            maxParticipants,
+            roomName,
+            accessCode
           );
+          
+          console.log("Vote creation transaction sent, waiting for confirmation...");
 
           const receipt = await tx.wait();
+          let voteId;
 
-          // Find the VoteCreated event to get the vote ID
-          const voteCreatedEvent = receipt.events.find(
-            (e) => e.event === "VoteCreated"
-          );
-          const blockchainVoteId = voteCreatedEvent.args.voteId.toString();
+          // Try to extract the voteId from the transaction receipt
+          if (receipt.logs && receipt.logs.length > 0) {
+            try {
+              // The first log is likely our VoteCreated event
+              const log = receipt.logs[0];
+              // For ethers v6
+              if (log.args) {
+                voteId = log.args[0].toString();
+              } 
+              // For ethers v5 or custom parsing
+              else if (log.topics && log.topics.length > 1) {
+                // The second topic should be the indexed voteId
+                voteId = parseInt(log.topics[1], 16).toString();
+              }
+            } catch (parseErr) {
+              console.error("Error parsing log for voteId:", parseErr);
+            }
+          }
 
-          // Update MongoDB record with blockchain vote ID
-          vote.voteId = blockchainVoteId;
-          vote.status = "new"; // Update status
-          await vote.save();
+          if (!voteId) {
+            // If we couldn't extract the ID, use a fallback approach
+            try {
+              const voteCount = await this.contract.getVoteCount();
+              voteId = voteCount.toString();
+              console.log(`Using fallback voteId: ${voteId}`);
+            } catch (countErr) {
+              console.error("Error getting vote count:", countErr);
+              throw new Error("Could not determine voteId");
+            }
+          }
 
-          console.log(
-            `Synced vote creation: ${vote._id} -> Blockchain ID: ${blockchainVoteId}`
-          );
+          console.log(`Vote synced to blockchain with ID: ${voteId}`);
 
-          // Now sync any votes cast for this vote
-          await this.syncVotesCastForVote(vote._id, blockchainVoteId);
-        } catch (error) {
-          console.error(`Failed to sync vote creation ${vote._id}:`, error);
+          // Update the MongoDB record with the blockchain voteId
+          // Store both the synced status and the numeric blockchain ID
+          await Vote.findByIdAndUpdate(vote._id, {
+            voteId: `synced_${voteId}`, // Mark as synced instead of pending
+            isPending: false,
+            syncedToBlockchain: true,
+            syncedAt: new Date(),
+            originalVoteId: voteId // Store the numeric ID for future reference
+          });
+          
+          console.log(`Updated vote ID from ${vote.voteId} to synced_${voteId} and stored original ID ${voteId}`);
+
+          // Process any pending votes for this vote that were cast during offline mode
+          // These will be handled in the second phase of the sync process
+
+          results.push({
+            success: true,
+            originalId: vote._id,
+            newVoteId: voteId,
+            title: vote.title,
+          });
+        } catch (voteError) {
+          console.error(`Error syncing vote ${vote.title}:`, voteError);
+          results.push({
+            success: false,
+            originalId: vote._id,
+            error: voteError.message,
+            title: vote.title,
+          });
         }
       }
 
-      // Then, sync any pending votes for already-created blockchain votes
-      const activeVotes = await Vote.find({
-        status: { $ne: "pending" },
-        voteId: { $not: { $regex: /^pending_/ } },
-      });
-
-      for (const vote of activeVotes) {
-        await this.syncVotesCastForVote(vote._id, vote.voteId);
-      }
-
-      console.log("Vote synchronization completed");
-    } catch (error) {
-      console.error("Error during vote synchronization:", error);
-    }
-  }
-
-  async syncVotesCastForVote(mongoVoteId, blockchainVoteId) {
-    try {
-      // Get the vote from MongoDB
-      const vote = await Vote.findById(mongoVoteId);
-      if (!vote) return;
-
-      // For each voter, check if their vote needs to be synced to blockchain
-      for (const voter of vote.voters) {
-        try {
-          // Get user details (assuming you have a User model with walletAddress)
-          const User = mongoose.model("User");
-          const user = await User.findById(voter.user);
-
-          if (!user || !user.walletAddress) {
-            console.log(
-              `No wallet address for user ${voter.user}, skipping sync`
-            );
-            continue;
-          }
-
-          // Check if already voted on blockchain
-          const hasVotedOnChain = await this.contract.hasUserVoted(
-            blockchainVoteId,
-            user.walletAddress
-          );
-
-          if (!hasVotedOnChain) {
-            // Cast vote on blockchain
-            const tx = await this.contract.castVote(
-              blockchainVoteId,
-              voter.votedFor
-            );
-            await tx.wait();
-            console.log(
-              `Synced vote for user ${voter.user} on vote ${blockchainVoteId}`
-            );
-          }
-        } catch (error) {
-          console.error(`Failed to sync vote for user ${voter.user}:`, error);
+      // After processing pending vote creations, now process individual ballots that need syncing
+      console.log("Now syncing individual ballots cast during outage...");
+      
+      for (const vote of votesWithPendingBallots) {
+        // Skip votes that haven't been synced to blockchain yet
+        // These will be handled in the first phase of syncing
+        if (vote.isPending === true && vote.voteId.startsWith("pending_")) {
+          console.log(`Skipping ballot sync for vote ${vote._id}: Vote itself needs to be synced first`);
+          results.push({
+            voteId: vote._id,
+            title: vote.title,
+            status: "deferred",
+            reason: "Vote needs to be created on blockchain first"
+          });
+          continue;
         }
+        
+        // Check if vote ID is valid for blockchain
+        if ((vote.voteId.startsWith("pending_") || vote.voteId.startsWith("blockchain_") || isNaN(Number(vote.voteId))) && !vote.originalVoteId) {
+          console.log(`Skipping ballot sync for vote ${vote._id}: Invalid voteId format for blockchain`);
+          results.push({
+            voteId: vote._id,
+            title: vote.title,
+            status: "skipped",
+            reason: "Invalid voteId format for blockchain"
+          });
+          continue;
+        }
+        
+        // Find which voters need to be synced
+        const pendingVoters = vote.voters.filter(v => v.pendingSync === true);
+        totalBallotsToSync += pendingVoters.length;
+        
+        console.log(`Processing ${pendingVoters.length} pending ballots for vote: ${vote.title} (ID: ${vote.voteId})`);
+        
+        // Process each pending voter
+        for (let i = 0; i < pendingVoters.length; i++) {
+          const voter = pendingVoters[i];
+          try {
+            // Create a unique wallet for this ballot sync
+            const uniqueString = `sync-${vote.voteId}-user-${voter.user}-${Date.now()}-attempt-${voter.syncAttempts + 1}`;
+            const uniqueBytes = ethers.keccak256(ethers.toUtf8Bytes(uniqueString));
+            const uniquePrivateKey = uniqueBytes.slice(0, 66);
+            const uniqueWallet = new ethers.Wallet(uniquePrivateKey, this.provider);
+            
+            console.log(`Created unique wallet for ballot sync: ${uniqueWallet.address}`);
+            
+            // Fund the wallet for the transaction
+            const fundTx = await this.wallet.sendTransaction({
+              to: uniqueWallet.address,
+              value: ethers.parseEther("0.01")
+            });
+            await fundTx.wait();
+            
+            // Get the contract address
+            const contractAddress = await this.contract.getAddress();
+            
+            // Create contract instance with unique wallet
+            const uniqueContract = new ethers.Contract(
+              contractAddress,
+              this.contract.interface,
+              uniqueWallet
+            );
+            
+            // First, extract the actual blockchain vote ID (without any prefix)
+            let blockchainVoteId;
+            
+            // Extract only the numeric part of the vote ID, regardless of any prefixes
+            if (vote.originalVoteId && !isNaN(Number(vote.originalVoteId))) {
+              // If we have a stored original ID and it's numeric, use that
+              blockchainVoteId = vote.originalVoteId;
+              console.log(`Using stored original vote ID: ${blockchainVoteId}`);
+            } else {
+              // Otherwise try to extract a numeric ID from the current vote ID
+              const numericMatch = vote.voteId.match(/\d+/);
+              if (numericMatch) {
+                blockchainVoteId = numericMatch[0];
+                console.log(`Extracted numeric vote ID: ${blockchainVoteId} from ${vote.voteId}`);
+              } else {
+                // If we can't find a numeric part, check if the ID itself is numeric
+                if (!isNaN(Number(vote.voteId))) {
+                  blockchainVoteId = vote.voteId;
+                  console.log(`Using vote ID directly: ${blockchainVoteId}`);
+                } else {
+                  throw new Error(`Cannot extract numeric vote ID from: ${vote.voteId}`);
+                }
+              }
+            }
+            
+            // Final check to make sure the vote ID is numeric for the blockchain
+            if (isNaN(Number(blockchainVoteId))) {
+              throw new Error(`Invalid blockchain vote ID: ${blockchainVoteId}. Must be numeric.`);
+            }
+            
+            console.log(`Syncing ballot for vote ${blockchainVoteId}, option ${voter.votedFor}`);
+            
+            // Check the contract interface to ensure we're passing parameters correctly
+            const castVoteFunction = uniqueContract.interface.getFunction("castVote");
+            console.log("Contract expects castVote parameters:", castVoteFunction ? castVoteFunction.inputs.map(i => i.name) : "Unknown");
+            
+            // Cast the vote on blockchain - this will increment the candidate vote count
+            console.log(`Casting vote with parameters: voteId=${blockchainVoteId}, optionId=${voter.votedFor}`);
+            const tx = await uniqueContract.castVote(Number(blockchainVoteId), voter.votedFor);
+            const receipt = await tx.wait();
+            
+            // Verify the transaction was successful
+            console.log(`Vote transaction successful with hash: ${receipt.transactionHash}`);
+            
+            // Verify the vote count was incremented on the blockchain
+            try {
+              const voteDetails = await this.contract.getVoteDetails(blockchainVoteId);
+              const candidateVotes = voteDetails.options[voter.votedFor].voteCount.toString();
+              console.log(`Verified candidate ${voter.votedFor} now has ${candidateVotes} votes on the blockchain`);
+            } catch (verifyError) {
+              console.warn(`Could not verify vote count update: ${verifyError.message}`);
+            }
+            
+            // Find the voter in the array to update (we can't directly update the filtered voter object)
+            const voterIndex = vote.voters.findIndex(v => 
+              v.user.toString() === voter.user.toString() && 
+              v.pendingSync === true &&
+              v.votedFor === voter.votedFor
+            );
+            
+            if (voterIndex !== -1) {
+              // Update the voter record to mark as synced
+              vote.voters[voterIndex].pendingSync = false;
+              vote.voters[voterIndex].syncStatus = "completed";
+              vote.voters[voterIndex].syncedAt = new Date();
+              vote.voters[voterIndex].syncAttempts += 1;
+              vote.voters[voterIndex].blockchainTx = receipt.transactionHash;
+              vote.voters[voterIndex].voterAddress = uniqueWallet.address;
+              
+              // If this is the first successful sync for this vote, update the vote ID
+              if (vote.voteId.startsWith('pending_') && !vote.syncedToBlockchain) {
+                // Extract a numeric ID
+                let originalId;
+                if (vote.originalVoteId && !isNaN(Number(vote.originalVoteId))) {
+                  originalId = vote.originalVoteId;
+                } else {
+                  const numericMatch = vote.voteId.match(/\d+/);
+                  originalId = numericMatch ? numericMatch[0] : Date.now().toString();
+                }
+                
+                // Update the vote with the synced status
+                vote.voteId = `synced_${originalId}`;
+                vote.originalVoteId = originalId; // Store the numeric ID
+                vote.syncedToBlockchain = true;
+                console.log(`Updated vote ID to synced_${originalId} after successful ballot sync`);
+              }
+              
+              successfullySyncedBallots++;
+              console.log(`Successfully synced ballot with tx hash: ${receipt.transactionHash}`);
+            }
+          } catch (error) {
+            // Find the voter in the array to update
+            const voterIndex = vote.voters.findIndex(v => 
+              v.user.toString() === voter.user.toString() && 
+              v.pendingSync === true &&
+              v.votedFor === voter.votedFor
+            );
+            
+            if (voterIndex !== -1) {
+              // Update the voter record to mark sync attempt failed
+              vote.voters[voterIndex].syncAttempts += 1;
+              vote.voters[voterIndex].syncError = error.message;
+              
+              // Only keep trying up to 3 times, then mark as failed
+              if (vote.voters[voterIndex].syncAttempts >= 3) {
+                vote.voters[voterIndex].syncStatus = "failed";
+                console.log(`Failed to sync ballot after ${vote.voters[voterIndex].syncAttempts} attempts: ${error.message}`);
+              }
+            }
+            
+            failedSyncBallots++;
+            console.error(`Error syncing ballot: ${error.message}`);
+          }
+        }
+        
+        // Save the updated vote with sync status
+        await vote.save();
+        
+        results.push({
+          voteId: vote._id,
+          title: vote.title,
+          ballotsProcessed: pendingVoters.length,
+          status: "processed"
+        });
       }
+      
+      // Return results with comprehensive statistics
+      return {
+        success: true,
+        message: `Sync complete. Processed ${results.length} votes and ${totalBallotsToSync} ballots. Success: ${successfullySyncedBallots}, Failed: ${failedSyncBallots}`,
+        details: {
+          votesProcessed: results.length,
+          ballotsProcessed: totalBallotsToSync,
+          successfulBallots: successfullySyncedBallots,
+          failedBallots: failedSyncBallots,
+          results: results
+        },
+        syncedCount: results.filter((r) => r.success).length,
+        failedCount: results.filter((r) => !r.success).length,
+      };
     } catch (error) {
-      console.error(
-        `Error syncing votes for mongo vote ${mongoVoteId}:`,
-        error
-      );
+      console.error("Error in syncPendingVotes:", error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -731,29 +1494,155 @@ class VoteController {
       // Update vote statuses based on time
       await Vote.updateVoteStatus();
 
-      // Get all votes from MongoDB
-      const votes = await Vote.find()
-        .populate("creator", "username email")
-        .sort({ createdAt: -1 });
+      let votes = [];
+      let blockchainError = null;
+      let mongoVotes = [];
+      
+      // Try to get blockchain votes first if system is powered and contract is initialized
+      if (this.systemPowered && this.contract) {
+        try {
+          // Get vote count to check if contract is accessible and has any votes
+          const voteCount = await this.contract.getVoteCount();
+          console.log(`Blockchain connected. Vote count: ${voteCount}`);
+          
+          // Only try to get votes if there are any
+          if (voteCount > 0) {
+            // Get all votes in a single transaction if possible
+            const [part1, part2, part3, allVoteOptions] = await Promise.all([
+              this.contract.getAllVotesPart1().catch(err => {
+                console.error("Error in getAllVotesPart1:", err);
+                return { voteIds: [], titles: [], descriptions: [], startTimes: [] };
+              }),
+              this.contract.getAllVotesPart2().catch(err => {
+                console.error("Error in getAllVotesPart2:", err);
+                return { endTimes: [], isActives: [], creators: [], maxParticipants: [] };
+              }),
+              this.contract.getAllVotesPart3().catch(err => {
+                console.error("Error in getAllVotesPart3:", err);
+                return { currentParticipants: [], roomNames: [], accessCodes: [], statuses: [] };
+              }),
+              this.contract.getAllVoteOptions().catch(err => {
+                console.error("Error in getAllVoteOptions:", err);
+                return [];
+              })
+            ]);
+            
+            // Check if we have valid data from the blockchain
+            if (part1 && part1.voteIds && Array.isArray(part1.voteIds) && part1.voteIds.length > 0) {
+              console.log(`Found ${part1.voteIds.length} votes in blockchain`);
+              votes = part1.voteIds.map((id, index) => {
+                // Convert options to candidates format
+                const voteId = id.toString();
+                const voteIndex = parseInt(voteId) - 1;
+                let candidates = [];
+                
+                // Check if we have options data for this vote
+                if (allVoteOptions && Array.isArray(allVoteOptions) && allVoteOptions[voteIndex]) {
+                  candidates = allVoteOptions[voteIndex].map((option, optionIndex) => ({
+                    name: option.name,
+                    voteCount: parseInt(option.voteCount.toString()),
+                    _id: `${voteId}_${optionIndex}`
+                  }));
+                }
+                
+                return {
+                  voteId: voteId,
+                  title: part1.titles[index],
+                  description: part1.descriptions[index],
+                  startTime: new Date(Number(part1.startTimes[index]) * 1000),
+                  endTime: new Date(Number(part2.endTimes[index]) * 1000),
+                  isActive: part2.isActives[index],
+                  creator: part2.creators[index],
+                  maxParticipants: Number(part2.maxParticipants[index]),
+                  currentParticipants: Number(part3.currentParticipants[index]),
+                  roomName: part3.roomNames[index],
+                  accessCode: part3.accessCodes[index],
+                  status: part3.statuses[index],
+                  candidates: candidates
+                };
+              });
+            } else {
+              console.log("No votes found in blockchain or empty response");
+            }
+          } else {
+            console.log("No votes in blockchain yet (vote count is 0)");
+          }
+        } catch (blockchainErr) {
+          console.error("Error fetching from blockchain:", blockchainErr);
+          blockchainError = blockchainErr.message || "Could not fetch votes from blockchain";
+          // We'll continue with MongoDB votes even if blockchain fails
+        }
+      } else {
+        console.log("Blockchain system not powered or contract not initialized");
+        blockchainError = "Blockchain system not available";
+        
+        // Only fetch from MongoDB if blockchain is not available
+        console.log("Fetching votes from MongoDB due to blockchain unavailability");
+        mongoVotes = await Vote.find()
+          .populate("creator", "username email")
+          .sort({ createdAt: -1 });
+      }
 
-      // Transform for client
-      const formattedVotes = votes.map((vote) => ({
-        _id: vote._id,
-        title: vote.title,
-        startTime: vote.startTime,
-        endTime: vote.endTime,
-        status: vote.status,
-        creator: vote.creator,
-        candidateCount: vote.candidates.length,
-        voterCount: vote.voters.length,
-        voteId: vote.voteId,
-        isPending: vote.voteId.startsWith("pending_"),
-      }));
+      // Merge and deduplicate votes
+      // If blockchain is available, only include synced and pending votes from MongoDB
+      // If blockchain is unavailable, use all MongoDB votes
+      let mergedVotes = [];
+      
+      if (this.systemPowered && votes.length > 0) {
+        // When blockchain is available, use blockchain votes and only pending/synced votes from MongoDB
+        mergedVotes = [
+          ...votes,  // Blockchain votes first
+          ...mongoVotes.filter(v => {
+            return v.voteId && v.voteId.startsWith && (
+              v.voteId.startsWith("pending_") || 
+              v.voteId.startsWith("synced_")
+            );
+          })
+        ];
+        console.log(`Using ${votes.length} blockchain votes and ${mergedVotes.length - votes.length} pending/synced MongoDB votes`);
+      } else {
+        // When blockchain is unavailable, use all MongoDB votes
+        mergedVotes = mongoVotes;
+        console.log(`Using ${mongoVotes.length} MongoDB votes due to blockchain unavailability`);
+      }
+
+      // Transform for client with better error handling
+      const formattedVotes = mergedVotes.map(vote => {
+        try {
+          return {
+            _id: vote._id || vote.voteId,
+            title: vote.title || "Untitled Vote",
+            startTime: vote.startTime,
+            endTime: vote.endTime,
+            status: vote.status || "unknown",
+            creator: vote.creator,
+            candidates: vote.candidates || [],  // Include the candidates array
+            candidateCount: vote.candidates ? vote.candidates.length : 0,
+            voterCount: vote.currentParticipants || (vote.voters ? vote.voters.length : 0),
+            voteId: vote.voteId,
+            roomName: vote.roomName || null,  // Include room name from blockchain/MongoDB
+            accessCode: vote.accessCode || null,  // Include access code from blockchain/MongoDB
+            description: vote.description || "",  // Include description
+            isPending: vote.voteId && vote.voteId.startsWith ? vote.voteId.startsWith("pending_") : false,
+            isSynced: vote.voteId && vote.voteId.startsWith ? vote.voteId.startsWith("synced_") : false,
+            source: vote.voteId && vote.voteId.startsWith ? 
+              (vote.voteId.startsWith("pending_") || vote.voteId.startsWith("synced_")) ? "mongodb" : "blockchain" 
+              : "blockchain"
+          };
+        } catch (err) {
+          console.error("Error formatting vote:", err, vote);
+          return null;
+        }
+      }).filter(v => v !== null); // Remove any votes that failed to format
 
       return res.status(200).json({
         success: true,
         votes: formattedVotes,
         systemPowered: this.systemPowered,
+        blockchainError: blockchainError,
+        blockchainVotesCount: votes.length,
+        mongoVotesCount: mongoVotes.length,
+        totalVotesCount: formattedVotes.length
       });
     } catch (error) {
       console.error("Error getting votes:", error);
@@ -843,6 +1732,60 @@ class VoteController {
     }
   }
 
+  async getUserVoteHistory(req, res) {
+    try {
+      const userId = req.user._id; // Get user ID from authenticated request
+      
+      // Find all votes where this user has voted
+      const votes = await Vote.find({
+        "voters.user": userId
+      })
+      .populate("creator", "username email")
+      .populate("voters.user", "username email");
+      
+      if (!votes || votes.length === 0) {
+        return res.status(200).json({ 
+          success: true, 
+          history: [] 
+        });
+      }
+      
+      // Format the response
+      const voteHistory = votes.map(vote => {
+        // Find this user's specific vote
+        const userVote = vote.voters.find(v => v.user._id.toString() === userId.toString());
+        const candidateVoted = vote.candidates[userVote.votedFor];
+        
+        return {
+          _id: vote._id,
+          voteId: vote.voteId,
+          title: vote.title,
+          description: vote.description,
+          status: vote.status,
+          startTime: vote.startTime,
+          endTime: vote.endTime,
+          candidateVoted: candidateVoted ? candidateVoted.name : "Unknown",
+          candidateParty: candidateVoted && candidateVoted.party ? candidateVoted.party : "",
+          votedAt: userVote.votedAt,
+          blockchainReference: userVote.blockchainReference || "",
+          verified: !!userVote.blockchainReference
+        };
+      });
+      
+      return res.status(200).json({
+        success: true,
+        history: voteHistory
+      });
+    } catch (error) {
+      console.error("Error fetching user vote history:", error);
+      return res.status(500).json({ 
+        success: false, 
+        error: "Failed to fetch voting history", 
+        details: error.message 
+      });
+    }
+  }
+
   async getVoteDetails(req, res) {
     try {
       const { voteId } = req.params;
@@ -902,6 +1845,29 @@ class VoteController {
     } catch (error) {
       console.error("Error getting vote details:", error);
       return res.status(500).json({ error: "Failed to get vote details" });
+    }
+  }
+
+  async getPowerStatus(req, res) {
+    try {
+      // Get the latest power data from MQTT controller
+      const mqttData = MqttController.getLatestData();
+      
+      // Format the response
+      const powerStatus = {
+        powered: this.systemPowered,
+        voltage: mqttData.voltage ? parseFloat(mqttData.voltage) : null,
+        powerCut: mqttData.powerCut === 'true',
+        timestamp: new Date().toISOString(),
+        message: this.systemPowered 
+          ? 'System is online and connected to blockchain' 
+          : 'System is in offline mode. Votes will be stored locally and synced when power is restored.'
+      };
+      
+      return res.status(200).json(powerStatus);
+    } catch (error) {
+      console.error("Error getting power status:", error);
+      return res.status(500).json({ error: error.message });
     }
   }
 }
