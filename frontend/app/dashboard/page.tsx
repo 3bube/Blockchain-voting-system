@@ -17,12 +17,14 @@ import {
   Clock,
   Users,
   BarChart3,
+  Clipboard,
   CheckCircle,
   Key,
   Shield,
 } from "lucide-react"
 import newRequest from "@/utils/newRequest"
 import { toast } from "sonner"
+
 
 interface VoteItem {
   _id: string
@@ -88,6 +90,13 @@ export default function DashboardPage() {
     }
   }
 
+
+  // handle copy access code
+  const handleCopyAccessCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+    toast.success("Access code copied to clipboard")
+  }
+
   useEffect(() => {
     // Fetch votes when component mounts
     fetchVotes()
@@ -108,7 +117,6 @@ export default function DashboardPage() {
     }
   }, [])
 
-  console.log(pastVotes)
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-3.5rem)]">
@@ -398,9 +406,19 @@ export default function DashboardPage() {
                         </div>
                         
                         {vote.accessCode && (
-                          <div className="flex items-center mt-2 bg-[#008751]/10 p-1.5 rounded-md">
-                            <Key className="h-4 w-4 mr-2 text-[#008751]" />
-                            <code className="text-xs font-mono text-[#008751] font-semibold">{vote.accessCode}</code>
+                          <div className="flex items-center justify-between mt-2 bg-[#008751]/10 p-1.5 rounded-md">
+                            <div className="flex items-center">
+                              <Key className="h-4 w-4 mr-2 text-[#008751]" />
+                              <code className="text-xs font-mono text-[#008751] font-semibold">{vote.accessCode}</code>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleCopyAccessCode(vote.accessCode!)}
+                              className="cursor-pointer"
+                            >
+                              <Clipboard className="h-2 w-2" />
+                            </Button>
                           </div>
                         )}
 
@@ -437,11 +455,11 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter>
+                    {/* <CardFooter>
                       <Button asChild className="w-full bg-[#008751] hover:bg-[#008751]/90">
                         <Link href={`/vote/${vote._id}`}>Cast Vote</Link>
                       </Button>
-                    </CardFooter>
+                    </CardFooter> */}
                   </Card>
                 ))}
               </div>

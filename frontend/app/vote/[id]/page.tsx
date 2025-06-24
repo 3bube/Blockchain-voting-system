@@ -64,10 +64,30 @@ export default function CastVotePage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [blockchainRef, setBlockchainRef] = useState<string>("")
-  const [timeRemaining, setTimeRemaining] = useState<{ days: number; hours: number; minutes: number } | null>(null)
+  const [timeRemaining, setTimeRemaining] = useState<{ days: number; hours: number; minutes: number; seconds: number; isExpired: boolean } | null>(null)
 
   const voteId = params.id as string
 
+  // Function to calculate time remaining between current time and end date
+  const calculateTimeRemaining = (endDateStr: string) => {
+    const endDate = new Date(endDateStr);
+    const now = new Date();
+    const diffTime = Math.max(0, endDate.getTime() - now.getTime()); // Ensure it doesn't go negative
+    
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
+    const diffSeconds = Math.floor((diffTime % (1000 * 60)) / 1000);
+    
+    return {
+      days: diffDays,
+      hours: diffHours,
+      minutes: diffMinutes,
+      seconds: diffSeconds,
+      isExpired: diffTime <= 0
+    };
+  };
+  
   useEffect(() => {
     const fetchVoteDetails = async () => {
       try {
@@ -96,20 +116,6 @@ export default function CastVotePage() {
           };
           
           setVoteDetails(combinedData);
-          
-          // Calculate time remaining
-          const endDate = new Date(combinedData.endDate);
-          const now = new Date();
-          const diffTime = endDate.getTime() - now.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-          const diffHours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const diffMinutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
-          
-          setTimeRemaining({
-            days: diffDays,
-            hours: diffHours,
-            minutes: diffMinutes,
-          });
         } else {
           // If API doesn't return expected data, use fallback mock data for development
           const mockData: VoteDetails = {
@@ -146,20 +152,6 @@ export default function CastVotePage() {
           };
           
           setVoteDetails(mockData);
-          
-          // Calculate time remaining with mock data
-          const endDate = new Date(mockData.endDate);
-          const now = new Date();
-          const diffTime = endDate.getTime() - now.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-          const diffHours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const diffMinutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
-          
-          setTimeRemaining({
-            days: diffDays,
-            hours: diffHours,
-            minutes: diffMinutes,
-          });
         }
       } catch (error) {
         console.error("Failed to fetch vote details:", error)
@@ -175,6 +167,23 @@ export default function CastVotePage() {
     fetchVoteDetails()
   }, [voteId, router])
 
+  // Update time remaining whenever vote details change or on an interval
+  useEffect(() => {
+    // Only proceed if we have vote details with an end date
+    if (!voteDetails?.endDate) return;
+    
+    // Calculate initial time remaining
+    setTimeRemaining(calculateTimeRemaining(voteDetails.endDate));
+    
+    // Set up interval to update time remaining every second for a smooth countdown
+    const intervalId = setInterval(() => {
+      setTimeRemaining(calculateTimeRemaining(voteDetails.endDate));
+    }, 1000); // Update every second
+    
+    // Clear interval on cleanup
+    return () => clearInterval(intervalId);
+  }, [voteDetails]);
+  
   // Function to refresh vote data after casting a vote
   const refreshVoteData = async () => {
     try {
@@ -443,26 +452,29 @@ export default function CastVotePage() {
                 </span>
               </div>
 
-              {timeRemaining && (
+              {/* {timeRemaining && (
                 <div className="flex items-center text-sm bg-[#008751]/5 p-3 rounded-lg border border-[#008751]/20 flex-grow">
                   <Clock className="h-5 w-5 mr-2 text-[#008751]" />
                   <span className="text-[#008751]">Time Remaining:</span>
                   <span className="ml-auto font-medium">
-                    {timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m
+                    {timeRemaining.isExpired ? "Voting ended" : 
+                      `${timeRemaining.days}d ${timeRemaining.hours}h ${timeRemaining.minutes}m ${timeRemaining.seconds}s`}
                   </span>
                 </div>
-              )}
+              )} */}
             </div>
 
-            {timeRemaining && (
+            {/* {timeRemaining && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Voting period</span>
-                  <span className="font-medium">{timeRemaining.days} days left</span>
+                  <span className="font-medium">
+                    {timeRemaining.isExpired ? "Voting has ended" : `${timeRemaining.days} days left`}
+                  </span>
                 </div>
                 <Progress value={Math.min(100, Math.max(5, (timeRemaining.days / 7) * 100))} className="h-2" />
               </div>
-            )}
+            )} */}
 
             <Separator className="my-2" />
 

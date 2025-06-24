@@ -18,7 +18,6 @@ import {
   BarChart3,
   Plus,
   Trash2,
-  Edit,
   Power,
   Clock,
   Key,
@@ -26,6 +25,7 @@ import {
   Zap,
   Shield,
   CheckCircle,
+  Battery,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -68,6 +68,12 @@ interface VoteWithRoom {
   status: string
   roomName?: string
   isPending?: boolean
+  candidates?: Array<{ name: string; voteCount: number }>
+  voters?: Array<{ 
+    user: { _id: string; username?: string; email?: string }; 
+    votedFor: number; 
+    votedAt: string 
+  }>
 }
 
 interface PowerStatus {
@@ -83,6 +89,13 @@ interface PowerStatus {
     failedBallots: number
   }
   message?: string
+  ups?: {
+    timeRemaining?: number
+    chargeLevel?: number
+    mode?: string
+    status?: string
+    lastUpdate?: string
+  }
 }
 
 export default function AdminDashboardPage() {
@@ -93,11 +106,14 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [roomCount, setRoomCount] = useState<number>(0)
+  const [endingVote, setEndingVote] = useState(false)
+  const [endVoteSuccess, setEndVoteSuccess] = useState<{id: string, message: string} | null>(null)
+  const [endVoteError, setEndVoteError] = useState<string | null>(null)
   const [activeRoomCount, setActiveRoomCount] = useState<number>(0)
   const [syncingBlockchain, setSyncingBlockchain] = useState(false)
   const [voltage, setVoltage] = useState<number | null>(null)
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
+  const [roomCount, setRoomCount] = useState<number>(0)
   // Define the fetchData function to load all data
   const fetchData = useCallback(async () => {
     try {
@@ -164,6 +180,10 @@ export default function AdminDashboardPage() {
           setLastSyncTime(powerResponse.data.timestamp)
         }
         console.log('Power status updated from API:', powerResponse.data)
+        // Debug log specifically for UPS data
+        if (powerResponse.data.ups) {
+          console.log('UPS Data:', powerResponse.data.ups)
+        }
       }
     } catch (error) {
       console.error("Failed to fetch power status:", error)
@@ -185,7 +205,7 @@ export default function AdminDashboardPage() {
   }, [fetchPowerStatus])
 
 
-  console.log(powerStatus)
+  console.log(powerStatus?.ups)
 
   // Define the triggerManualSync function
   const triggerManualSync = useCallback(async () => {
@@ -257,17 +277,69 @@ export default function AdminDashboardPage() {
   }, [isAdmin, router, fetchData])
 
 
-  const handleDeleteVote = async (id: string) => {
+  const handleEndVote = async (voteId: string) => {
+    if (!voteId) return
+    
+    setEndingVote(true)
+    setEndVoteSuccess(null)
+    setEndVoteError(null)
+    
     try {
-      // Note: Your backend might not have this endpoint yet
-      // You may need to implement it or adjust this code
-      const response = await newRequest.delete(`/vote/${id}`)
-
+      // Use the existing backend API structure with newRequest utility
+      const response = await newRequest.post(`/vote/end/${voteId}`)
+      
       if (response.data.success) {
-        setVotes(votes.filter((vote) => vote._id !== id))
-        toast.success("The vote has been deleted successfully")
+        // Update the vote status in the list
+        setVotes(votes.map(vote => {
+          if (vote._id === voteId) {
+            return { ...vote, status: "closed" }
+          }
+          return vote
+        }))
+        
+        setEndVoteSuccess({
+          id: voteId,
+          message: response.data.message || "Vote ended successfully on blockchain"
+        })
+        
+        toast.success(response.data.message || "Vote ended successfully on blockchain")
       } else {
-        toast.error(response.data.error || "Failed to delete vote")
+        setEndVoteError(response.data.error || "Failed to end vote")
+        toast.error(response.data.error || "Failed to end vote")
+      }
+    } catch (error: unknown) {
+      console.error("Error ending vote:", error)
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'object' && error !== null && 'response' in error && 
+          typeof error.response === 'object' && error.response !== null && 
+          'data' in error.response && typeof error.response.data === 'object' && 
+          error.response.data !== null && 'error' in error.response.data 
+            ? String(error.response.data.error) 
+            : "An error occurred while ending the vote"
+      
+      setEndVoteError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setEndingVote(false)
+    }
+  }
+
+  const handleDeleteVote = async () => {
+    if (!deleteId) return
+
+    try {
+      const response = await fetch(`/api/votes/${deleteId}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        // Remove the deleted vote from the list
+        setVotes(votes.filter((vote) => vote._id !== deleteId))
+        toast.success("Vote deleted successfully")
+      } else {
+        const data = await response.json()
+        toast.error(data.error || "Failed to delete vote")
       }
     } catch (error) {
       console.error("Error deleting vote:", error)
@@ -278,23 +350,23 @@ export default function AdminDashboardPage() {
     }
   }
 
-  const handleEndVote = async (id: string) => {
-    try {
-      const response = await newRequest.post(`/vote/end/${id}`)
+  // const handleEndVote = async (id: string) => {
+  //   try {
+  //     const response = await newRequest.post(`/vote/end/${id}`)
 
-      if (response.data.success) {
-        // Update the vote status in the local state
-        setVotes(votes.map((vote) => (vote._id === id ? { ...vote, status: "closed" } : vote)))
+  //     if (response.data.success) {
+  //       // Update the vote status in the local state
+  //       setVotes(votes.map((vote) => (vote._id === id ? { ...vote, status: "closed" } : vote)))
 
-        toast.success("The vote has been ended successfully")
-      } else {
-        toast.error(response.data.error || "Failed to end vote")
-      }
-    } catch (error) {
-      console.error("Error ending vote:", error)
-      toast.error("An error occurred while ending the vote")
-    }
-  }
+  //       toast.success("The vote has been ended successfully")
+  //     } else {
+  //       toast.error(response.data.error || "Failed to end vote")
+  //     }
+  //   } catch (error) {
+  //     console.error("Error ending vote:", error)
+  //     toast.error("An error occurred while ending the vote")
+  //   }
+  // }
 
   // Function to handle manual sync button click
   const handleManualSync = () => {
@@ -402,6 +474,24 @@ export default function AdminDashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* System Status Indicator */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center text-gray-500">
+                <Power className="h-4 w-4 mr-1" />
+                System Status:
+              </span>
+              <Badge 
+                variant={powerStatus?.ups?.status === "online" ? "default" : "outline"} 
+                className={`font-normal ${
+                  powerStatus?.ups?.status === "online" ? "bg-green-100 text-green-800" : 
+                  powerStatus?.ups?.status === "offline" ? "bg-red-100 text-red-800" : 
+                  "bg-gray-100 text-gray-800"
+                }`}
+              >
+                {powerStatus?.ups?.status || "Unknown"}
+              </Badge>
+            </div>
+            
             {/* Voltage Indicator */}
             {voltage !== null && (
               <div className="space-y-2">
@@ -422,6 +512,71 @@ export default function AdminDashboardPage() {
               </div>
             )}
             
+            {/* UPS Mode */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center text-gray-500">
+                <Zap className="h-4 w-4 mr-1" />
+                UPS Mode:
+              </span>
+              <Badge 
+                variant={powerStatus?.ups?.mode === "Normal" ? "default" : "outline"} 
+                className={`font-normal ${
+                  powerStatus?.ups?.mode === "Battery" ? "bg-amber-100 text-amber-800 border-amber-300" : 
+                  powerStatus?.ups?.mode === "Charging" ? "bg-blue-100 text-blue-800 border-blue-300" :
+                  powerStatus?.ups?.mode === "Normal" ? "bg-green-100 text-green-800" : 
+                  "bg-gray-100 text-gray-800"
+                }`}
+              >
+                {powerStatus?.ups?.mode || "Unknown"}
+              </Badge>
+            </div>
+            
+            {/* Battery Charge Level - Always show this section */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium flex items-center">
+                  <Battery className="h-4 w-4 mr-1" />
+                  Battery Level
+                </span>
+                <span className="text-sm font-bold">
+                  {powerStatus?.ups?.chargeLevel !== undefined 
+                    ? `${powerStatus.ups.chargeLevel}%` 
+                    : 'Loading...'}
+                </span>
+              </div>
+              
+              {/* Battery visual indicator */}
+              <div className="flex items-center gap-2">
+                <div className="relative w-full h-6 border border-gray-300 rounded-md overflow-hidden">
+                  <div 
+                    className={`absolute top-0 left-0 h-full ${
+                      (powerStatus?.ups?.chargeLevel || 0) < 20 ? "bg-red-500" : 
+                      (powerStatus?.ups?.chargeLevel || 0) < 50 ? "bg-amber-500" : 
+                      "bg-green-500"
+                    }`}
+                    style={{ width: `${powerStatus?.ups?.chargeLevel || 0}%` }}
+                  ></div>
+                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                    <span className="text-xs font-medium text-white drop-shadow-md">
+                      {powerStatus?.ups?.chargeLevel !== undefined 
+                        ? `${powerStatus.ups.chargeLevel}%` 
+                        : 'Waiting for data...'}
+                    </span>
+                  </div>
+                </div>
+                {/* <div className={`h-6 w-2 bg-gray-300 rounded-tr-md rounded-br-md ${
+                  powerStatus?.ups?.mode === "Charging" ? "animate-pulse bg-blue-500" : ""
+                }`}></div> */}
+              </div>
+              
+              {/* {powerStatus?.ups?.timeRemaining != null && (
+                <p className="text-xs text-gray-500 flex items-center justify-end">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {powerStatus.ups.timeRemaining} minutes remaining
+                </p>
+              )} */}
+            </div>
+            
             {/* Last Update Time */}
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center text-gray-500">
@@ -429,7 +584,21 @@ export default function AdminDashboardPage() {
                 Last Update:
               </span>
               <span className="font-medium">
-                {lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : 'N/A'}
+                {powerStatus?.ups?.lastUpdate ? new Date(powerStatus.ups.lastUpdate).toLocaleString('en-US', {
+                  hour: 'numeric',
+                  minute: 'numeric',
+                  second: 'numeric',
+                  hour12: true,
+                  month: 'short',
+                  day: 'numeric'
+                }) : (lastSyncTime ? new Date(lastSyncTime).toLocaleString('en-US', {
+                  hour: 'numeric',
+                  minute: 'numeric',
+                  second: 'numeric',
+                  hour12: true,
+                  month: 'short',
+                  day: 'numeric'
+                }) : 'N/A')}
               </span>
             </div>
             
@@ -493,11 +662,11 @@ export default function AdminDashboardPage() {
                 : `${activeVotes.filter((v) => v.isPending).length} pending sync`}
             </p>
           </CardContent>
-          <CardFooter>
+          {/* <CardFooter>
             <Button variant="outline" size="sm" asChild className="w-full">
               <Link href="/admin/votes">Manage Votes</Link>
             </Button>
-          </CardFooter>
+          </CardFooter> */}
         </Card>
 
         <Card className="border-l-4 border-l-blue-500 shadow-md">
@@ -518,11 +687,11 @@ export default function AdminDashboardPage() {
               Across {votes.length} voting sessions
             </p>
           </CardContent>
-          <CardFooter>
+          {/* <CardFooter>
             <Button variant="outline" size="sm" asChild className="w-full">
               <Link href="/admin/votes">View Details</Link>
             </Button>
-          </CardFooter>
+          </CardFooter> */}
         </Card>
 
         <Card className="border-l-4 border-l-amber-500 shadow-md">
@@ -550,11 +719,11 @@ export default function AdminDashboardPage() {
               ></div>
             </div>
           </CardContent>
-          <CardFooter>
+          {/* <CardFooter>
             <Button variant="outline" size="sm" asChild className="w-full">
               <Link href="/power-status">Monitor Power</Link>
             </Button>
-          </CardFooter>
+          </CardFooter> */}
         </Card>
 
         <Card className="border-l-4 border-l-purple-500 shadow-md">
@@ -676,12 +845,12 @@ export default function AdminDashboardPage() {
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-between gap-2 pt-2">
-                    <Button variant="outline" size="sm" asChild className="flex-1">
+                    {/* <Button variant="outline" size="sm" asChild className="flex-1">
                       <Link href={`/vote/edit/${vote._id}`}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </Link>
-                    </Button>
+                    </Button> */}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" size="sm" className="flex-1">
@@ -696,10 +865,30 @@ export default function AdminDashboardPage() {
                             This will end the voting session and no more votes can be cast. Results will be finalized
                             and made available.
                           </AlertDialogDescription>
+                          {endVoteError && (
+                            <div className="mt-2 rounded-md bg-destructive/15 p-3">
+                              <div className="flex items-center">
+                                <AlertCircle className="h-4 w-4 text-destructive" />
+                                <p className="ml-2 text-sm text-destructive">{endVoteError}</p>
+                              </div>
+                            </div>
+                          )}
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleEndVote(vote._id)}>End Vote</AlertDialogAction>
+                          <AlertDialogAction 
+                            onClick={() => handleEndVote(vote._id)}
+                            disabled={endingVote && endVoteSuccess?.id === vote._id}
+                          >
+                            {endingVote && endVoteSuccess?.id === vote._id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              "End Vote"
+                            )}
+                          </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -817,12 +1006,12 @@ export default function AdminDashboardPage() {
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-between gap-2 pt-2">
-                    <Button variant="outline" size="sm" asChild className="flex-1">
+                    {/* <Button variant="outline" size="sm" asChild className="flex-1">
                       <Link href={`/vote/edit/${vote._id}`}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </Link>
-                    </Button>
+                    </Button> */}
 
                     <Button
                       variant="ghost"
@@ -982,7 +1171,7 @@ export default function AdminDashboardPage() {
         <div className="flex items-center">
           <h2 className="text-2xl font-bold">Power Status Overview</h2>
           <Badge variant="outline" className="ml-3">
-            {powerStatus?.length} Devices
+            System Status
           </Badge>
         </div>
         <Button variant="outline" asChild>
@@ -1000,7 +1189,7 @@ export default function AdminDashboardPage() {
           <CardDescription>Overview of power status across all polling stations</CardDescription>
         </CardHeader>
         <CardContent>
-          {powerStatus.length === 0 ? (
+          {!powerStatus ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
               <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium">No Data Available</h3>
@@ -1045,55 +1234,11 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
               </div>
-{/* 
-              <div className="mt-6">
-                <h4 className="text-sm font-medium mb-3">Battery Status</h4>
-                <div className="space-y-3">
-                  {[
-                    {
-                      level: "Critical (<25%)",
-                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) < 25).length,
-                      color: "bg-red-500",
-                    },
-                    {
-                      level: "Low (25-50%)",
-                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) >= 25 && (d.batteryLevel || 0) < 50)
-                        .length,
-                      color: "bg-orange-500",
-                    },
-                    {
-                      level: "Medium (50-75%)",
-                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) >= 50 && (d.batteryLevel || 0) < 75)
-                        .length,
-                      color: "bg-yellow-500",
-                    },
-                    {
-                      level: "High (75-100%)",
-                      count: powerStatus?.filter((d) => (d.batteryLevel || 0) >= 75).length,
-                      color: "bg-green-500",
-                    },
-                  ].map((item) => (
-                    <div key={item.level} className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full ${item.color} mr-2`}></div>
-                      <div className="flex justify-between w-full">
-                        <span className="text-sm">{item.level}</span>
-                        <span className="text-sm font-medium">{item.count}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div> */}
             </div>
           )}
         </CardContent>
         <CardFooter>
           <div className="flex gap-2 w-full">
-            <Button variant="outline" asChild className="flex-1">
-              <Link href="/power-status">
-                <Zap className="mr-2 h-4 w-4" />
-                Power Status
-              </Link>
-            </Button>
             <Button variant="outline" className="flex-1" onClick={handleManualSync} disabled={syncingBlockchain}>
               <RefreshCw className={`mr-2 h-4 w-4 ${syncingBlockchain ? "animate-spin" : ""}`} />
               {syncingBlockchain ? "Syncing..." : "Sync Blockchain"}
@@ -1108,45 +1253,6 @@ export default function AdminDashboardPage() {
           <div className="flex-1 bg-[#008751]"></div>
         </div>
       </Card>
-
-      {/* System status summary */}
-      {/* <Card className="mb-4 border-l-4 border-l-[#008751]">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center">
-            <CheckCircle className="h-5 w-5 text-[#008751] mr-2" />
-            System Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex flex-col">
-              <span className="text-sm text-muted-foreground">Blockchain</span>
-              <span className="font-medium flex items-center">
-                <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>
-                Connected
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm text-muted-foreground">Database</span>
-              <span className="font-medium flex items-center">
-                <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>
-                Operational
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm text-muted-foreground">API</span>
-              <span className="font-medium flex items-center">
-                <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>
-                Healthy
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm text-muted-foreground">Last Sync</span>
-              <span className="font-medium">{new Date().toLocaleTimeString()}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card> */}
     </div>
   )
 }

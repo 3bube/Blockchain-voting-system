@@ -271,7 +271,7 @@ export default function RoomManagementPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 self-end md:self-center">
+                          {/* <div className="flex items-center gap-2 self-end md:self-center">
                             <Button
                               variant="outline"
                               size="sm"
@@ -281,7 +281,7 @@ export default function RoomManagementPage() {
                               <ExternalLink className="h-4 w-4 mr-2" />
                               View Vote
                             </Button>
-                          </div>
+                          </div> */}
                         </div>
                       </CardContent>
                     </Card>

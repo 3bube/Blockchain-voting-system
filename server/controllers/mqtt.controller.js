@@ -13,6 +13,9 @@ class MqttController {
     this.topics = {
       voltage: "esp32/voltage",
       powerCut: "esp32/power_cut_alert",
+      status: "esp32/status",
+      ups_time_remaining: "esp32/ups_time_remaining",
+      ups_charge: "esp32/ups_charge_level",
     };
 
     this.mqttClient = null;
@@ -62,7 +65,59 @@ class MqttController {
       console.log("Disconnected from MQTT broker");
     });
 
+    // Handle power restore
+    this.mqttClient.on("message", this.handlePowerRestore.bind(this));
+
     return this;
+  }
+
+  handlePowerRestore(topic, message) {
+    if (topic === this.topics.powerCut && message.toString() === "power_restore") {
+      console.log("MQTT: Power restored!");
+      this.voteController.systemPowered = true;
+      this.voteController.voltage = 230; // Assume normal voltage on restore
+
+      // Sync any pending votes to blockchain after a short delay
+      setTimeout(async () => {
+        console.log("Attempting to sync pending votes after power restore...");
+        try {
+          // First check how many pending votes we have
+          const Vote = require('../models/vote.models');
+          const pendingVotes = await Vote.find({
+            $or: [
+              { voteId: { $regex: /^pending_/ } },
+              { isPending: true },
+              { syncedToBlockchain: false, status: "pending" }
+            ]
+          });
+          console.log(`Found ${pendingVotes.length} pending votes before starting sync`);
+          pendingVotes.forEach((vote, index) => {
+            console.log(`[${index + 1}] ID: ${vote._id}, Title: ${vote.title}, voteId: ${vote.voteId}, isPending: ${vote.isPending}`);
+          });
+          
+          // Now sync them
+          const syncResult = await this.voteController.syncPendingVotes();
+          console.log("Sync completed with result:", syncResult);
+
+          // Broadcast power status update with sync stats
+          this.voteController.broadcastPowerStatus({
+            syncComplete: true,
+            syncStats: syncResult.stats || {
+              votesProcessed: pendingVotes.length,
+              ballotsProcessed: 0,
+              successfulBallots: 0,
+              failedBallots: 0
+            }
+          });
+        } catch (error) {
+          console.error("Error during power restore sync:", error);
+          this.voteController.broadcastPowerStatus({
+            syncComplete: false,
+            syncError: error.message
+          });
+        }
+      }, 5000); // Give 5 seconds for systems to stabilize
+    }
   }
 
   handleMessage(topic, message) {

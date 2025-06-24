@@ -86,24 +86,28 @@ contract VotingSystem {
         require(bytes(_description).length > 0, "Description cannot be empty");
         require(bytes(_roomName).length > 0, "Room name cannot be empty");
         require(bytes(_accessCode).length > 0, "Access code cannot be empty");
-        require(
-            _startTime >= block.timestamp, 
-            string(abi.encodePacked(
-                "Start time must be in the future. Given: ", 
-                toString(_startTime),
-                ", Current: ",
-                toString(block.timestamp)
-            ))
-        );
-        require(
-            _endTime > _startTime, 
-            string(abi.encodePacked(
-                "End time must be after start time. Start: ",
-                toString(_startTime),
-                ", End: ",
-                toString(_endTime)
-            ))
-        );
+
+
+        // require(
+        //     _startTime >= block.timestamp, 
+        //     string(abi.encodePacked(
+        //         "Start time must be in the future. Given: ", 
+        //         toString(_startTime),
+        //         ", Current: ",
+        //         toString(block.timestamp)
+        //     ))
+        // );
+        // require(
+        //     _endTime > _startTime, 
+        //     string(abi.encodePacked(
+        //         "End time must be after start time. Start: ",
+        //         toString(_startTime),
+        //         ", End: ",
+        //         toString(_endTime)
+        //     ))
+        // );
+
+
         require(_optionNames.length >= 2, "Must have at least 2 options");
         require(_maxParticipants > 0, "Max participants must be greater than 0");
         require(_maxParticipants <= 1000, "Max participants cannot exceed 1000");

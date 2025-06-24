@@ -549,14 +549,34 @@ class VoteController {
   }
 
   setupPowerMonitoring() {
+    // Initialize storage for UPS data
+    this.upsData = {
+      voltage: null,
+      timeRemaining: null, // in minutes
+      chargeLevel: null,   // in percentage
+      mode: "Normal",      // Normal, Battery, etc.
+      status: "offline",   // online/offline
+      lastUpdate: null     // timestamp of the last update
+    };
+
     // Subscribe to power cut alerts
     MqttController.onMessage("esp32/power_cut_alert", (message) => {
-      const isPowerCut = message === "true";
+      console.log(`Power cut alert received: ${message}`);
+      const isPowerCut = message === "Power Cut Detected";
+      const isPowerRestored = message === "Power Restored";
       console.log(`Power cut alert received: ${isPowerCut}`);
 
       // Always update system power status based on the latest message
       const previousPowerState = this.systemPowered;
-      this.systemPowered = !isPowerCut;
+      this.systemPowered = !isPowerCut || isPowerRestored;
+
+      // Update UPS mode based on power status
+      if (isPowerCut) {
+        this.upsData.mode = "Battery";
+      } else if (isPowerRestored) {
+        this.upsData.mode = "Normal";
+      }
+      this.upsData.lastUpdate = new Date();
 
       // Only take action if the power state actually changed
       if (previousPowerState !== this.systemPowered) {
@@ -586,7 +606,8 @@ class VoteController {
                 powered: true,
                 syncComplete: true,
                 timestamp: new Date().toISOString(),
-                stats: result.details
+                stats: result.details,
+                upsData: this.upsData
               }));
               
               // Update MongoDB vote statuses as well
@@ -606,22 +627,122 @@ class VoteController {
           MqttController.publish("power/status", JSON.stringify({
             powered: false,
             message: "System is in offline mode. Votes will be stored locally and synced when power is restored.",
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            upsData: this.upsData
           }));
         }  
       }
     });
 
-    // Also monitor voltage levels for potential issues
-    MqttController.onMessage("esp32/voltage", (message) => {
+    // Monitor system status
+    MqttController.onMessage("esp32/status", (message) => {
       try {
-        const voltage = parseFloat(message);
-        // Log low voltage warnings (potential brownout conditions)
-        if (voltage < 180) { // Assuming normal voltage is ~220V
-          console.log(`Low voltage detected: ${voltage}V - System may be unstable`);
+        const status = message.toString().trim();
+        this.upsData.status = status;
+        this.upsData.lastUpdate = new Date();
+        console.log(`System status: ${status}`);
+        
+        // Update system powered status based on status message
+        if (status === "online" && !this.systemPowered) {
+          console.log("System coming online - updating system power status");
+          this.systemPowered = true;
+        } else if (status === "offline" && this.systemPowered) {
+          console.log("System going offline - updating system power status");
+          this.systemPowered = false;
         }
       } catch (e) {
         // Ignore parsing errors
+      }
+    });
+
+    // Monitor UPS time remaining - using the correct topic
+    MqttController.onMessage("esp32/ups_time_remaining", (message) => {
+      console.log(`UPS time remaining message received: ${message}`);
+      try {
+        // Extract the number value from the message (e.g., "72.0 minutes" -> 72.0)
+        const timeString = message.toString().trim();
+        
+        // Extract just the number part using regex
+        const match = timeString.match(/(\d+\.?\d*)/);
+        const timeInMinutes = match ? parseFloat(match[0]) : null;
+        
+        // Log the exact values being processed for debugging
+        console.log(`UPS time remaining - Raw message: "${timeString}", Parsed value: ${timeInMinutes}`);
+        
+        if (timeInMinutes !== null && !isNaN(timeInMinutes)) {
+          this.upsData.timeRemaining = timeInMinutes;
+          this.upsData.lastUpdate = new Date();
+          console.log(`UPS time remaining: ${timeInMinutes} minutes`);
+        } else {
+          console.error(`Failed to parse time remaining from message: "${timeString}"`);
+        }
+      } catch (e) {
+        console.error("Error parsing UPS time remaining:", e);
+      }
+    });
+
+    // Monitor UPS charge level - using the correct topic
+    MqttController.onMessage("esp32/ups_charge_level", (message) => {
+      try {
+        // Extract the number value from the message (e.g., "92.3%" -> 92.3)
+        const chargeString = message.toString().trim();
+
+        // Remove any percentage sign if present
+        const numericString = chargeString.replace(/%/g, '');
+        const chargeLevel = parseFloat(numericString);
+        
+        // Log the exact values being processed for debugging
+        console.log(`UPS charge level - Raw message: "${chargeString}", Cleaned: "${numericString}", Parsed value: ${chargeLevel}`);
+        
+        if (!isNaN(chargeLevel)) {
+          this.upsData.chargeLevel = chargeLevel;
+          this.upsData.lastUpdate = new Date();
+          console.log(`UPS charge level: ${chargeLevel}%`);
+          
+          // Also log the complete UPS data object for debugging
+          console.log("Current UPS data state:", JSON.stringify(this.upsData));
+        } else {
+          console.error(`Failed to parse charge level from message: "${chargeString}"`);
+        }
+      } catch (e) {
+        console.error("Error parsing UPS charge level:", e);
+      }
+    });
+
+    // Monitor UPS operating mode - using the correct topic
+    MqttController.onMessage("esp32/ups_mode", (message) => {
+      try {
+        const mode = message.toString().trim();
+        this.upsData.mode = mode;
+        this.upsData.lastUpdate = new Date();
+        console.log(`UPS mode: ${mode}`);
+
+        // If mode is "Battery", update system powered status
+        if (mode === "Battery" && this.systemPowered) {
+          console.log("UPS switched to battery mode - updating system power status");
+          this.systemPowered = false;
+          
+          // Notify clients about power change
+          MqttController.publish("power/status", JSON.stringify({
+            powered: false,
+            message: "System is running on battery power. Votes will be stored locally and synced when main power is restored.",
+            timestamp: new Date().toISOString(),
+            upsData: this.upsData
+          }));
+        } else if (mode === "Normal" && !this.systemPowered) {
+          console.log("UPS switched to normal mode - updating system power status");
+          this.systemPowered = true;
+          
+          // Notify clients about power change
+          MqttController.publish("power/status", JSON.stringify({
+            powered: true,
+            message: "System is back on main power.",
+            timestamp: new Date().toISOString(),
+            upsData: this.upsData
+          }));
+        }
+      } catch (e) {
+        console.error("Error parsing UPS mode:", e);
       }
     });
   }
@@ -734,7 +855,7 @@ class VoteController {
             voteId = "blockchain_" + new mongoose.Types.ObjectId().toString();
             console.log("Generated fallback voteId:", voteId);
           }
-
+          
           // Create corresponding MongoDB record for backup and easy querying
           const newVote = new Vote({
             title,
@@ -746,20 +867,45 @@ class VoteController {
             voters: [],
             status: "new",
             voteId: voteId,
+            syncedToBlockchain: true, // Mark this as synced since it was created on blockchain
             accessCode: accessCode,
             roomName: roomName
           });
 
           savedVote = await newVote.save();
           console.log("Vote saved to MongoDB with ID:", savedVote._id);
-
+          
         } catch (error) {
           console.error("Error creating vote on blockchain:", error);
-          return res.status(500).json({
-            success: false,
-            error: "Failed to create vote on blockchain",
-            details: error.message,
+          
+          // Instead of failing, let's create it in MongoDB and mark for future sync
+          console.log("Creating vote in MongoDB due to blockchain error for later sync");
+          
+          // Generate a unique ID for this vote
+          const mongoId = new mongoose.Types.ObjectId().toString();
+          voteId = "pending_" + mongoId;
+          
+          // Create vote in MongoDB with pending status - ensure ALL sync flags are set
+          const newVote = new Vote({
+            title,
+            description,
+            startTime: new Date(startTime),
+            endTime: new Date(endTime),
+            candidates: optionNames.map((name) => ({ name, voteCount: 0 })),
+            creator,
+            voters: [],
+            status: "pending", // Pending status means needs to be synced to blockchain
+            voteId: voteId,
+            isPending: true, // Flag this vote as needing sync
+            syncedToBlockchain: false, // Explicitly mark as not synced
+            needsSync: true, // Additional flag to ensure it's caught by sync process
+            accessCode: accessCode,
+            roomName: roomName
           });
+
+          savedVote = await newVote.save();
+          console.log("Vote saved to MongoDB with pending status, ID:", savedVote._id);
+          console.log("This vote will be synced to blockchain when power is restored");
         }
       } else {
         // Power outage - create vote in MongoDB only and sync later
@@ -769,6 +915,7 @@ class VoteController {
         
         console.log("Power outage detected: Creating vote in MongoDB for later blockchain sync");
         
+        // Create vote in MongoDB with pending status - ensure ALL sync flags are set
         const newVote = new Vote({
           title,
           description,
@@ -780,14 +927,14 @@ class VoteController {
           status: "pending", // Pending status means needs to be synced to blockchain
           voteId: voteId,
           isPending: true, // Flag this vote as needing sync
-          syncedToBlockchain: false,
+          syncedToBlockchain: false, // Explicitly mark as not synced
+          needsSync: true, // Additional flag to ensure it's caught by sync process
           accessCode: accessCode,
           roomName: roomName
         });
 
         savedVote = await newVote.save();
-        console.log("Vote saved to MongoDB with pending status, ID:", savedVote._id);
-        console.log("This vote will be synced to blockchain when power is restored");
+        console.log("Vote saved to MongoDB with pending status:", savedVote._id);
       }
 
       // Return success response with vote details
@@ -884,6 +1031,8 @@ class VoteController {
         return res.status(400).json({ error: "You have already cast a vote" });
       }
 
+
+      // If blockchain is powered and vote is not pending or blockchain vote, proceed with blockchain voting
       if (this.systemPowered && !voteInDb.voteId.startsWith("pending_") && !voteInDb.voteId.startsWith("blockchain_")) {
         try {
           // Generate a unique address for each user-vote combination to prevent "Already voted" errors
@@ -1040,21 +1189,48 @@ class VoteController {
       const results = [];
       
       // 1. First, sync any pending vote creations (votes created during outage)
+      // Enhanced query to make sure we catch ALL cases of pending votes
       const pendingVotes = await Vote.find({
         $or: [
           { voteId: { $regex: /^pending_/ } },
-          { isPending: true }
+          { isPending: true },
+          { syncedToBlockchain: false },
+          { status: "pending" }
         ]
       });
+      
+      // Also get all votes that don't have syncedToBlockchain explicitly set to true
+      // This catches admin-created votes that might have been missed
+      const additionalPendingVotes = await Vote.find({
+        syncedToBlockchain: { $ne: true },
+        voteId: { $not: { $regex: /^synced_/ } }
+      });
+      
+      // Log more details about what was found to help debug
+      // console.log(`Found ${pendingVotes.length} pending votes with the following details:`);
+      // pendingVotes.forEach((vote, index) => {
+      //   console.log(`[${index + 1}] Vote ID: ${vote._id}, Title: ${vote.title}, isPending: ${vote.isPending}, voteId: ${vote.voteId}, syncedToBlockchain: ${vote.syncedToBlockchain}, status: ${vote.status}`);
+      // });
+      
+      // Log additional pending votes found
+      // console.log(`Found ${additionalPendingVotes.length} additional votes that might need syncing:`);
+      additionalPendingVotes.forEach((vote, index) => {
+        // Only add to pendingVotes if not already included
+        const alreadyIncluded = pendingVotes.some(pv => pv._id.toString() === vote._id.toString());
+        if (!alreadyIncluded) {
+          console.log(`[+${index + 1}] Adding vote: ${vote._id}, Title: ${vote.title}, isPending: ${vote.isPending}, voteId: ${vote.voteId}`);
+          pendingVotes.push(vote);
+        }
+      });
 
-      console.log(`Found ${pendingVotes.length} pending vote creations to sync`);
+      // console.log(`Total ${pendingVotes.length} vote creations to sync - processing now...`);
 
       // 2. Find any individual votes cast during outage (marked with pendingSync)
       const votesWithPendingBallots = await Vote.find({
         "voters.pendingSync": true
       });
       
-      console.log(`Found ${votesWithPendingBallots.length} votes with pending ballots to sync`);
+      // console.log(`Found ${votesWithPendingBallots.length} votes with pending ballots to sync`);
       
       if (pendingVotes.length === 0 && votesWithPendingBallots.length === 0) {
         console.log("No pending votes or ballots to sync");
@@ -1069,7 +1245,7 @@ class VoteController {
       // Process each pending vote creation
       for (const vote of pendingVotes) {
         try {
-          console.log(`Syncing vote creation: ${vote.title}`);
+          // console.log(`Syncing vote creation: ${vote.title}`);
           
           // Extract a numeric vote ID for the blockchain
           let blockchainVoteId;
@@ -1083,11 +1259,11 @@ class VoteController {
             const numericMatch = vote.voteId.match(/\d+/);
             if (numericMatch) {
               blockchainVoteId = numericMatch[0];
-              console.log(`Extracted numeric vote ID: ${blockchainVoteId} from ${vote.voteId}`);
+              // console.log(`Extracted numeric vote ID: ${blockchainVoteId} from ${vote.voteId}`);
             } else {
               // If we can't find a numeric part, generate a new numeric ID
               blockchainVoteId = Date.now().toString();
-              console.log(`Generated new numeric vote ID: ${blockchainVoteId}`);
+              // console.log(`Generated new numeric vote ID: ${blockchainVoteId}`);
             }
           }
           
@@ -1096,7 +1272,7 @@ class VoteController {
             throw new Error(`Invalid blockchain vote ID: ${blockchainVoteId}. Must be numeric.`);
           }
           
-          console.log(`Using blockchain vote ID: ${blockchainVoteId}`);
+          // console.log(`Using blockchain vote ID: ${blockchainVoteId}`);
           
           // Check if this vote has any votes that need to be synced
           const pendingVotersForThisVote = vote.voters.filter(v => v.pendingSync === true);
@@ -1114,7 +1290,7 @@ class VoteController {
           // Check the contract interface to ensure we're passing parameters correctly
           console.log("Checking contract interface...");
           const createVoteFunction = this.contract.interface.getFunction("createVote");
-          console.log("Contract expects parameters:", createVoteFunction ? createVoteFunction.inputs.map(i => i.name) : "Unknown");
+          // console.log("Contract expects parameters:", createVoteFunction ? createVoteFunction.inputs.map(i => i.name) : "Unknown");
           
           // Ensure we have all required parameters with proper defaults
           const title = vote.title || "Untitled Vote";
@@ -1124,16 +1300,16 @@ class VoteController {
           const maxParticipants = vote.maxParticipants || 1000;
           
           // Log the parameters we're sending to the contract
-          console.log("Syncing vote with parameters:", {
-            title,
-            description,
-            optionNames,
-            startTimeUnix,
-            endTimeUnix,
-            maxParticipants,
-            roomName,
-            accessCode
-          });
+          // console.log("Syncing vote with parameters:", {
+          //   title,
+          //   description,
+          //   optionNames,
+          //   startTimeUnix,
+          //   endTimeUnix,
+          //   maxParticipants,
+          //   roomName,
+          //   accessCode
+          // });
           
           // Create the vote on the blockchain with proper parameter order
           console.log("Creating vote on blockchain...");
@@ -1654,10 +1830,20 @@ class VoteController {
     try {
       const { voteId } = req.params;
 
-      // Find vote in MongoDB
-      const vote = await Vote.findOne({
-        $or: [{ voteId: voteId }, { _id: voteId }],
-      });
+      // Check if voteId is a valid MongoDB ObjectId (24 char hex string)
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(voteId);
+      
+      // Find vote in MongoDB using appropriate query based on ID type
+      let vote;
+      if (isValidObjectId) {
+        // If it's a valid ObjectId, search by _id
+        vote = await Vote.findById(voteId);
+      }
+      
+      // If not found by _id or not a valid ObjectId, try searching by blockchain voteId
+      if (!vote) {
+        vote = await Vote.findOne({ voteId: voteId });
+      }
 
       if (!vote) {
         return res.status(404).json({ error: "Vote not found" });
@@ -1856,12 +2042,20 @@ class VoteController {
       // Format the response
       const powerStatus = {
         powered: this.systemPowered,
-        voltage: mqttData.voltage ? parseFloat(mqttData.voltage) : null,
+        voltage: mqttData.voltage ? parseFloat(mqttData.voltage) : (this.upsData?.voltage || null),
         powerCut: mqttData.powerCut === 'true',
         timestamp: new Date().toISOString(),
         message: this.systemPowered 
           ? 'System is online and connected to blockchain' 
-          : 'System is in offline mode. Votes will be stored locally and synced when power is restored.'
+          : 'System is in offline mode. Votes will be stored locally and synced when power is restored.',
+        // Add new UPS data fields
+        ups: {
+          timeRemaining: this.upsData?.timeRemaining || null,
+          chargeLevel: this.upsData?.chargeLevel || null,
+          mode: this.upsData?.mode || 'Unknown',
+          status: this.upsData?.status || 'Unknown',
+          lastUpdate: this.upsData?.lastUpdate ? this.upsData.lastUpdate.toISOString() : null
+        }
       };
       
       return res.status(200).json(powerStatus);

@@ -13,6 +13,9 @@ const generateToken = (id) => {
 // @access  Public
 export const register = async (req, res) => {
   try {
+
+    console.log("Registration request received", req.body);
+
     const { name, email, password, nin } = req.body;
 
     // Validate input fields
@@ -31,6 +34,7 @@ export const register = async (req, res) => {
 
     // Check if user exists by email
     const emailExists = await User.findOne({ email });
+    console.log("Checking email:", emailExists);
     if (emailExists) {
       return res.status(400).json({
         success: false,
@@ -38,8 +42,10 @@ export const register = async (req, res) => {
       });
     }
 
+    
     // Check if NIN is already used
     const ninExists = await User.findOne({ nin });
+    console.log("Checking NIN:", ninExists);
     if (ninExists) {
       return res.status(400).json({
         success: false,
