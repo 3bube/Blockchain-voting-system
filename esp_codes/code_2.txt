@@ -1,0 +1,43 @@
+#include <ZMPT101B.h>
+#include <SoftwareSerial.h>
+
+#define SENSITIVITY 600.0f
+
+// Define software serial pins
+#define RX_PIN 10  // Connect this to ESP32's TX
+#define TX_PIN 11  // Connect this to ESP32's RX
+
+// Create software serial object
+SoftwareSerial esp32Serial(RX_PIN, TX_PIN);
+
+// ZMPT101B sensor output connected to analog pin A0
+// and the voltage source frequency is 50 Hz.
+ZMPT101B voltageSensor(A0, 50.0);
+
+void setup() {
+  // Initialize Serial for debugging
+  Serial.begin(115200);
+  
+  // Initialize software serial for communication with ESP32
+  esp32Serial.begin(115200);
+
+  // Change the sensitivity value based on calibration
+  voltageSensor.setSensitivity(SENSITIVITY);
+
+  Serial.println("ZMPT101 Voltage Sensor Initialized");
+}
+
+void loop() {
+  // read the voltage and then print via Serial.
+  float voltage = voltageSensor.getRmsVoltage();
+  
+  // Send voltage to ESP32
+  esp32Serial.println(voltage);
+  
+  // Optional: Print to local serial for debugging
+  Serial.print("Voltage: ");
+  Serial.print(voltage);
+  Serial.println(" V");
+
+  delay(1000);
+}

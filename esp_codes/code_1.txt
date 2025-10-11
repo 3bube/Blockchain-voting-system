@@ -1,0 +1,350 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+
+// Wi-Fi credentials
+const char* ssid = "LAPTOP-0PLHQ5G4 0701";
+const char* password = "123456789";
+
+// MQTT broker details
+const char* mqtt_broker = "cdacdd88136b4999a94c6947c602812b.s1.eu.hivemq.cloud";
+const int mqtt_port = 8883;
+const char* mqtt_username = "Test_connection";
+const char* mqtt_password = "Test*Connection1";
+
+// MQTT topics
+const char* topic_power_cut = "esp32/power_cut_alert";
+const char* topic_ups_time = "esp32/ups_time_remaining";
+const char* topic_ups_charge = "esp32/ups_charge_level";  // New topic for charge level percentage
+const char* topic_ups_mode = "esp32/ups_mode";  // New topic for UPS mode (discharging/charging)
+const char* topic_status = "esp32/status";
+
+// Serial2 RX/TX pins for Arduino communication
+const int RXD2 = 16;
+const int TXD2 = 17;
+
+// Instances
+WiFiClientSecure wifiClient;
+PubSubClient mqttClient(wifiClient);
+
+// Timing
+unsigned long previous_time = 0;
+unsigned long lastStatusUpdateTime = 0;  // For 20-second updates
+unsigned long lastWifiCheckTime = 0;
+unsigned long lastReconnectAttempt = 0;
+unsigned long powerCutStartTime = 0;
+unsigned long chargingStartTime = 0;
+
+// UPS Constants
+const float UPS_CAPACITY_WATTS = 390.0;  // UPS capacity in watts
+const float DESKTOP_POWER_WATTS = 300.0;  // Desktop power consumption in watts
+const float FULL_RUNTIME_MINUTES = (UPS_CAPACITY_WATTS / DESKTOP_POWER_WATTS) * 60.0;  // Full runtime in minutes
+const float CHARGING_RATE = 0.5;  // Charging rate: 50% of discharge rate (adjust based on actual UPS)
+
+// UPS Status Variables
+float charge_level_percent = 100.0;  // Start fully charged
+float estimated_minutes_remaining = FULL_RUNTIME_MINUTES;
+bool isOnUPS = false;  // UPS mode flag (discharging)
+bool isCharging = false;  // UPS charging mode flag
+String ups_mode = "Standby";  // Current UPS mode (Standby, Discharging, Charging)
+
+// Network status
+bool networkConnected = false;
+
+// Alert Flag
+bool powerCutAlertSent = false;
+
+// Reconnect to WiFi if disconnected
+void ensureWiFiConnected() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi connection lost. Reconnecting...");
+    WiFi.reconnect();
+    
+    // Wait for reconnection for up to 10 seconds
+    unsigned long startAttempt = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000) {
+      delay(500);
+      Serial.print(".");
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\nReconnected to WiFi");
+    } else {
+      Serial.println("\nFailed to reconnect to WiFi");
+    }
+  }
+}
+
+void setupMQTT() {
+  mqttClient.setServer(mqtt_broker, mqtt_port);
+  mqttClient.setKeepAlive(60); // Set keepalive to 60 seconds
+}
+
+bool reconnectMQTT() {
+  // Don't try to reconnect too frequently
+  unsigned long now = millis();
+  if (now - lastReconnectAttempt < 5000) {
+    return false;
+  }
+  
+  lastReconnectAttempt = now;
+  Serial.println("Connecting to MQTT Broker...");
+  
+  // First check WiFi connection
+  if (WiFi.status() != WL_CONNECTED) {
+    ensureWiFiConnected();
+    if (WiFi.status() != WL_CONNECTED) {
+      return false; // Can't reconnect MQTT without WiFi
+    }
+  }
+  
+  String clientId = "ESP32Client-";
+  clientId += String(random(0xffff), HEX);
+
+  if (mqttClient.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
+    Serial.println("Connected to MQTT Broker.");
+    
+    // Publish online status
+    mqttClient.publish(topic_status, "online", true);
+    
+    // Republish current UPS status
+    publishUpsStatus();
+    
+    // Also republish the current mode
+    mqttClient.publish(topic_ups_mode, ups_mode.c_str(), true);
+    
+    // Republish power cut status if needed
+    if (isOnUPS && !powerCutAlertSent) {
+      mqttClient.publish(topic_power_cut, "Power Cut Detected", true);
+      powerCutAlertSent = true;
+    }
+    
+    networkConnected = true;
+    return true;
+  } else {
+    Serial.print("Failed to connect to MQTT, rc=");
+    Serial.println(mqttClient.state());
+    networkConnected = false;
+    return false;
+  }
+}
+
+void publishUpsStatus() {
+  if (!mqttClient.connected()) return;
+
+  // Only publish time remaining and charge level when discharging (on UPS)
+  if (isOnUPS) {
+    // Publish time remaining with "minutes" added
+    char timeBuffer[32];
+    snprintf(timeBuffer, sizeof(timeBuffer), "%.1f minutes", estimated_minutes_remaining);
+    mqttClient.publish(topic_ups_time, timeBuffer, true);
+    
+    // Publish charge level
+    char chargeBuffer[32];
+    snprintf(chargeBuffer, sizeof(chargeBuffer), "%.1f%%", charge_level_percent);
+    mqttClient.publish(topic_ups_charge, chargeBuffer, true);
+    
+    // Log to serial
+    Serial.print("🔋 UPS Discharging | Charge Level: ");
+    Serial.print(chargeBuffer);
+    Serial.print(" | Time Remaining: ");
+    Serial.println(timeBuffer);
+  } 
+  else if (isCharging) {
+    // Don't publish to MQTT during charging, just log to serial
+    Serial.print("🔌 UPS Charging | Charge Level: ");
+    Serial.print(charge_level_percent);
+    Serial.println("%");
+  }
+  else {
+    // In standby mode, only log to serial
+    Serial.println("✅ UPS Standby | Fully Charged");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
+  
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  
+  // Wait for connection with timeout
+  unsigned long wifiStartTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - wifiStartTime < 20000) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nConnected to Wi-Fi");
+    networkConnected = true;
+  } else {
+    Serial.println("\nFailed to connect to Wi-Fi. Will retry later.");
+    networkConnected = false;
+  }
+
+  wifiClient.setInsecure();
+  wifiClient.setNoDelay(true);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+
+  setupMQTT();
+  
+  // Print UPS capacity information
+  Serial.print("UPS Capacity: ");
+  Serial.print(UPS_CAPACITY_WATTS);
+  Serial.println(" W");
+  
+  Serial.print("Desktop Power Consumption: ");
+  Serial.print(DESKTOP_POWER_WATTS);
+  Serial.println(" W");
+  
+  Serial.print("Full Runtime at 100% Charge: ");
+  Serial.print(FULL_RUNTIME_MINUTES);
+  Serial.println(" minutes");
+  
+  Serial.println("System ready to monitor UPS status.");
+}
+
+void updateUpsStatus(unsigned long now) {
+  // Calculate time elapsed since last update (in seconds)
+  float elapsed_seconds = (now - lastStatusUpdateTime) / 1000.0;
+  lastStatusUpdateTime = now;
+  
+  if (isOnUPS) {
+    // DISCHARGING MODE: Calculate discharge rate
+    float discharge_percent_per_second = 100.0 / (FULL_RUNTIME_MINUTES * 60.0);
+    float percent_discharged = discharge_percent_per_second * elapsed_seconds;
+    
+    // Update charge level
+    charge_level_percent -= percent_discharged;
+    if (charge_level_percent < 0.0) charge_level_percent = 0.0;
+    
+    // Update time remaining
+    estimated_minutes_remaining = (charge_level_percent / 100.0) * FULL_RUNTIME_MINUTES;
+  } 
+  else if (isCharging && charge_level_percent < 100.0) {
+    // CHARGING MODE: Calculate charge rate (typically slower than discharge)
+    float charge_percent_per_second = (100.0 / (FULL_RUNTIME_MINUTES * 60.0)) * CHARGING_RATE;
+    float percent_charged = charge_percent_per_second * elapsed_seconds;
+    
+    // Update charge level
+    charge_level_percent += percent_charged;
+    if (charge_level_percent > 100.0) charge_level_percent = 100.0;
+  }
+  
+  // Publish updated status
+  publishUpsStatus();
+}
+
+void loop() {
+  unsigned long now = millis();
+  
+  // Check WiFi every 30 seconds
+  if (now - lastWifiCheckTime > 30000) {
+    lastWifiCheckTime = now;
+    ensureWiFiConnected();
+  }
+  
+  // Handle MQTT connection
+  if (!mqttClient.connected()) {
+    networkConnected = reconnectMQTT();
+  } else {
+    mqttClient.loop();
+  }
+  
+  // Update UPS status every 20 seconds
+  if (now - lastStatusUpdateTime > 20000) {
+    if (isOnUPS || isCharging) {
+      updateUpsStatus(now);
+    }
+  }
+  
+  // Main monitoring code
+  if (now - previous_time > 500) {
+    previous_time = now;
+
+    if (Serial2.available()) {
+      String voltageStr = Serial2.readStringUntil('\n');
+      float voltage = voltageStr.toFloat();
+      Serial.print("Received Voltage: ");
+      Serial.print(voltage);
+      Serial.println(" V");
+
+      // Power cut detection (voltage below 190V)
+      if (voltage < 190.0) {
+        // POWER CUT DETECTED
+        if (!isOnUPS) {
+          // Transition to UPS mode (discharging)
+          powerCutStartTime = now;
+          isOnUPS = true;
+          isCharging = false;
+          ups_mode = "Discharging";
+          
+          Serial.println("⚠ Power Cut Detected! UPS now discharging...");
+          
+          if (networkConnected) {
+            // Publish power cut alert
+            mqttClient.publish(topic_power_cut, "Power Cut Detected", true);
+            // Publish mode change only when power status changes
+            mqttClient.publish(topic_ups_mode, ups_mode.c_str(), true);
+            powerCutAlertSent = true;
+          }
+          
+          // Initialize the status update timer
+          lastStatusUpdateTime = now;
+        }
+      } else {
+        // NORMAL POWER DETECTED
+        if (isOnUPS) {
+          // Transition from UPS mode to charging mode
+          isOnUPS = false;
+          
+          // Only start charging if battery isn't full
+          if (charge_level_percent < 100.0) {
+            isCharging = true;
+            chargingStartTime = now;
+            ups_mode = "Charging";
+            Serial.println("🔌 Power Restored. UPS now charging...");
+          } else {
+            isCharging = false;
+            ups_mode = "Standby";
+            Serial.println("🔌 Power Restored. UPS on standby (fully charged).");
+          }
+          
+          if (networkConnected) {
+            // Publish power restored alert
+            mqttClient.publish(topic_power_cut, "Power Restored", true);
+            // Publish mode change only when power status changes
+            mqttClient.publish(topic_ups_mode, ups_mode.c_str(), true);
+            powerCutAlertSent = false;
+          }
+          
+          // Reset the status update timer
+          lastStatusUpdateTime = now;
+        }
+        else if (isCharging && charge_level_percent >= 100.0) {
+          // Battery reached full charge
+          if (ups_mode != "Standby") {
+            isCharging = false;
+            ups_mode = "Standby";
+            charge_level_percent = 100.0;
+            estimated_minutes_remaining = FULL_RUNTIME_MINUTES;
+            
+            Serial.println("✅ UPS fully charged and on standby.");
+            // Publish mode change only when reaching full charge
+            if (networkConnected) {
+              mqttClient.publish(topic_ups_mode, ups_mode.c_str(), true);
+            }
+            publishUpsStatus();
+          }
+        }
+      }
+    }
+  }
+  
+  // Lightweight non-blocking delay
+  delay(10);
+}
